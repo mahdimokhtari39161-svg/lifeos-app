@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "LifeOS — Your Everyday Hub",
+  "short_name": "LifeOS",
+  "description": "One simple space for your everyday life.",
+  "lang": "fa",
+  "dir": "auto",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c1020",
+  "theme_color": "#101426",
+  "categories": ["lifestyle", "productivity", "utilities"],
+  "icons": [
+    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
