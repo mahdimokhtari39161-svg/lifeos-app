@@ -114,8 +114,9 @@ function buildGun(){
  magazine=box(gun,0,-.22,-.12,.09,.25,.13,black);
  box(gun,.01,-.08,-.32,.035,.12,.13,steel);
  // First-person sleeves, forearms and gloved hands.
- const leftArm=new THREE.Mesh(new THREE.CapsuleGeometry(.075,.46,4,8),sleeve);leftArm.position.set(-.22,-.22,-.16);leftArm.rotation.set(-.82,.18,-.48);gun.add(leftArm);
- const rightArm=new THREE.Mesh(new THREE.CapsuleGeometry(.075,.38,4,8),sleeve);rightArm.position.set(.19,-.2,.23);rightArm.rotation.set(-.65,-.18,.48);gun.add(rightArm);
+ const leftArm=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.54,10),sleeve);leftArm.position.set(-.22,-.22,-.16);leftArm.rotation.set(-.82,.18,-.48);gun.add(leftArm);
+ const rightArm=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.46,10),sleeve);rightArm.position.set(.19,-.2,.23);rightArm.rotation.set(-.65,-.18,.48);gun.add(rightArm);
+ sphere(gun,-.22,-.22,-.16,.078,sleeve,10);sphere(gun,.19,-.2,.23,.078,sleeve,10);
  sphere(gun,-.12,-.12,-.36,.095,glove,12);sphere(gun,.12,-.105,-.01,.09,glove,12);
  flash=new THREE.PointLight(0xffb35a,0,5);flash.position.set(0,.02,-.93);gun.add(flash);
  const flare=new THREE.Mesh(new THREE.ConeGeometry(.075,.28,8),new THREE.MeshBasicMaterial({color:0xffc46e,transparent:true,opacity:.9}));flare.rotation.x=-Math.PI/2;flare.position.set(0,.02,-.98);gun.add(flare);flare.visible=false;gun.userData.flare=flare;
