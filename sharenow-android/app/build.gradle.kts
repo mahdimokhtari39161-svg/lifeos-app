@@ -7,16 +7,15 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.sharenow.android"
+        applicationId = "com.sharenow.transfer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "2.1.0"
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
