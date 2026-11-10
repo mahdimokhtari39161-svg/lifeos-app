@@ -7,11 +7,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.sharenow.transfer"
+        // New package ID prevents conflicts with older ShareNow builds signed with
+        // a different debug certificate. Future builds keep this same ID and key.
+        applicationId = "com.sharenow.transfer2026"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.1.1"
+        versionCode = 5
+        versionName = "2.2.0"
     }
 
     buildTypes {
