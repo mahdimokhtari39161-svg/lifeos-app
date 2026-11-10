@@ -1097,20 +1097,32 @@ public class MainActivity extends Activity {
              DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE));
              DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE))) {
 
-            String suppliedPin = input.readUTF();
-            if (!sessionPin.equals(suppliedPin)) {
-                output.writeBoolean(false);
-                output.flush();
-                publishStatus("یک اتصال با کد اشتباه رد شد.");
+            byte[] salt = new byte[16];
+            byte[] authNonce = new byte[12];
+            input.readFully(salt);
+            input.readFully(authNonce);
+            int authLength = input.readInt();
+            if (authLength < 16 || authLength > 256) throw new IOException("Invalid authentication proof");
+            byte[] authProof = new byte[authLength];
+            input.readFully(authProof);
+
+            SecretKey key = deriveKey(sessionPin, salt);
+            boolean authenticated = false;
+            try {
+                Cipher authCipher = Cipher.getInstance("AES/GCM/NoPadding");
+                authCipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, authNonce));
+                byte[] proofText = authCipher.doFinal(authProof);
+                authenticated = MessageDigest.isEqual(
+                        proofText, "SHARENOW_AUTH_V2".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (Exception ignored) {
+                authenticated = false;
+            }
+            output.writeBoolean(authenticated);
+            output.flush();
+            if (!authenticated) {
+                publishStatus("یک اتصال با کد امنیتی نادرست رد شد.");
                 return;
             }
-
-            output.writeBoolean(true);
-            byte[] salt = new byte[16];
-            secureRandom.nextBytes(salt);
-            output.write(salt);
-            output.flush();
-            SecretKey key = deriveKey(suppliedPin, salt);
 
             int fileCount = input.readInt();
             if (fileCount < 1 || fileCount > 500) throw new IOException("Invalid file count");
@@ -1287,13 +1299,22 @@ public class MainActivity extends Activity {
             DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE));
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE));
 
-            output.writeUTF(pin);
+            byte[] salt = new byte[16];
+            byte[] authNonce = new byte[12];
+            secureRandom.nextBytes(salt);
+            secureRandom.nextBytes(authNonce);
+            SecretKey key = deriveKey(pin, salt);
+            Cipher authCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            authCipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, authNonce));
+            byte[] authProof = authCipher.doFinal(
+                    "SHARENOW_AUTH_V2".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.write(salt);
+            output.write(authNonce);
+            output.writeInt(authProof.length);
+            output.write(authProof);
             output.flush();
             if (!input.readBoolean()) throw new IOException("کد امنیتی اشتباه است یا نشست مقصد منقضی شده است.");
 
-            byte[] salt = new byte[16];
-            input.readFully(salt);
-            SecretKey key = deriveKey(pin, salt);
             output.writeInt(files.size());
             output.flush();
 
