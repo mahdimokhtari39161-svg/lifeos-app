@@ -1269,11 +1269,12 @@ public class MainActivity extends Activity {
                     throw new IOException("Integrity check failed for " + originalName);
                 }
             }
+            final long completedReceiveBytes = totalBytes;
             mainHandler.post(() -> {
                 if (progressBar != null) progressBar.setProgress(100);
                 if (progressText != null) progressText.setText("۱۰۰٪");
                 if (transferMetricsView != null) transferMetricsView.setText(
-                        "حجم نهایی دریافت: " + formatBytes(totalBytes));
+                        "حجم نهایی دریافت: " + formatBytes(completedReceiveBytes));
             });
             recordTransferHistory("دریافت", fileCount, totalBytes, socket.getInetAddress().getHostAddress());
             publishStatus("انتقال کامل شد؛ فایل‌ها در Downloads/ShareNow ذخیره شدند.");
