@@ -243,7 +243,7 @@ function buildCompound(){
  box(scene,0,-.28,-8,40,.55,72,reinforced);
  for(const x of [-20,-10,10,20])box(scene,x,2.15,-8,.75,4.8,72,concrete);
  const spans=[{cx:-15,w:10,spring:2.4,rise:2.6},{cx:0,w:20,spring:3.5,rise:4.2},{cx:15,w:10,spring:2.4,rise:2.6}];
- for(const bay of spans){for(let z=-36;z<=36;z+=6){const pts=[];for(let k=0;k<=12;k++){const t=Math.PI-(k/12)*Math.PI;pts.push(new THREE.Vector3(bay.cx+Math.cos(t)*bay.w/2,bay.spring+Math.sin(t)*bay.rise,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),.7,.32,8,false),concrete);rib.castShadow=true;rib.receiveShadow=true;scene.add(rib)}}
+ for(const bay of spans){for(let z=-36;z<=36;z+=6){const pts=[];for(let k=0;k<=12;k++){const t=Math.PI-(k/12)*Math.PI;pts.push(new THREE.Vector3(bay.cx+Math.cos(t)*bay.w/2,bay.spring+Math.sin(t)*bay.rise,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),24,.32,8,false),concrete);rib.castShadow=true;rib.receiveShadow=true;scene.add(rib)}}
  // Main assembly hall floor: 108 m long, centered in the 40 m central bay.
  box(scene,0,.015,0,20,.06,60,floorMat);
  // Room footprints transcribed from the prior OBJ model (model X=length, Y=width; game scale 0.5).
@@ -259,7 +259,7 @@ function buildCompound(){
  for(const zc of [-45,45]){
   box(scene,tunnelX,-.12,zc,3.2,.35,18,reinforced);
   for(const x of [tunnelX-1.65,tunnelX+1.65])box(scene,x,1.45,zc,.35,2.9,18,concrete);
-  for(let z=zc-9;z<=zc+9;z+=3){const pts=[];for(let k=0;k<=8;k++){const t=Math.PI-(k/8)*Math.PI;pts.push(new THREE.Vector3(tunnelX+Math.cos(t)*1.65,1.75+Math.sin(t)*1.25,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),.5,.16,7,false),concrete);scene.add(rib)}
+  for(let z=zc-9;z<=zc+9;z+=3){const pts=[];for(let k=0;k<=8;k++){const t=Math.PI-(k/8)*Math.PI;pts.push(new THREE.Vector3(tunnelX+Math.cos(t)*1.65,1.75+Math.sin(t)*1.25,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),16,.16,7,false),concrete);scene.add(rib)}
   const sign=box(scene,tunnelX,3.2,zc-9,.9,.28,.12,warning);sign.rotation.z=0;
   for(const z of [zc-6,zc,zc+6]){const lamp=new THREE.PointLight(0xb9d1bd,.7,10);lamp.position.set(tunnelX,2.8,z);scene.add(lamp);box(scene,tunnelX,3,z,.5,.1,.2,lightMat)}
  }
