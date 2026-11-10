@@ -230,10 +230,21 @@ function applyClassWeapon(){
  gun.position.x=selectedClass.id==='sniper'?.38:.34;
  gun.position.z=selectedClass.id==='sniper'?.78*-1:-.68;
 }
+let defenderCamo=null;
+function getDefenderCamo(){
+ if(defenderCamo)return defenderCamo;
+ const c=document.createElement('canvas');c.width=256;c.height=256;const ctx=c.getContext('2d');
+ ctx.fillStyle='#9a8d69';ctx.fillRect(0,0,256,256);
+ const colors=['#6d7654','#4c5942','#b2a17a','#746348','#8e7954','#596044'];
+ for(let i=0;i<190;i++){ctx.fillStyle=colors[i%colors.length];ctx.beginPath();const x=Math.random()*256,y=Math.random()*256;ctx.ellipse(x,y,Math.random()*15+4,Math.random()*8+3,Math.random()*Math.PI,0,Math.PI*2);ctx.fill()}
+ const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(2,2);tex.colorSpace=THREE.SRGBColorSpace;defenderCamo=tex;return tex;
+}
 function makeSoldier(){
  const g=new THREE.Group(),health=2+Math.floor(wave*.25);
  if(soldierTemplate){
-  const model=cloneSkeleton(soldierTemplate),bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
+  const model=cloneSkeleton(soldierTemplate);
+  model.traverse(o=>{if(!o.isMesh)return;const list=Array.isArray(o.material)?o.material:[o.material];const updated=list.map(original=>{const m=original.clone(),tag=((m.name||'')+' '+(o.name||'')).toLowerCase();if(/head|face|skin|eye/.test(tag))return m;if(/weapon|rifle|gun/.test(tag)){m.color.setHex(0x252b29);return m}if(/boot|shoe/.test(tag)){m.color.setHex(0x20231f);return m}if(/helmet|hat/.test(tag)){m.color.setHex(0x4b5540);return m}m.map=getDefenderCamo();m.color.setHex(0xffffff);m.roughness=.94;m.needsUpdate=true;return m});o.material=Array.isArray(o.material)?updated:updated[0]});
+  const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
   const scale=1.82/Math.max(.001,size.y);model.scale.setScalar(scale);
   const scaledBounds=new THREE.Box3().setFromObject(model);model.position.y-=scaledBounds.min.y;
   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
@@ -247,7 +258,7 @@ function makeSoldier(){
   return g;
  }
  // Offline/fallback soldier made from built-in geometry if the model server cannot be reached.
- const skin=mat(0x9b795f),uniform=mat(Math.random()<.5?0x82785c:0x59634d),vest=mat(0x3b4437),helmet=mat(0x414b3d),boots=mat(0x202321),gunmat=mat(0x242a2a,.4,.5);
+ const skin=mat(0x9b795f),uniform=new THREE.MeshStandardMaterial({map:getDefenderCamo(),roughness:.94}),vest=mat(0x3b4437),helmet=mat(0x414b3d),boots=mat(0x202321),gunmat=mat(0x242a2a,.4,.5);
  box(g,0,1.18,0,.55,.72,.32,uniform);box(g,0,1.22,-.18,.48,.48,.08,vest);box(g,0,1.22,-.235,.28,.19,.025,mat(0x39453b));
  sphere(g,0,1.78,0,.19,skin,14);sphere(g,0,1.91,0,.22,helmet,14);box(g,0,1.72,-.17,.32,.1,.08,helmet);box(g,0,2.105,0,.31,.045,.28,helmet);
  let arms=[],legs=[];
