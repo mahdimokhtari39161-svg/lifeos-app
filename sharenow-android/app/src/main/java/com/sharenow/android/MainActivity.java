@@ -518,6 +518,7 @@ public class MainActivity extends Activity {
             WifiNetworkSpecifier specifier = specifierBuilder.build();
             NetworkRequest request = new NetworkRequest.Builder()
                     .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                    .removeCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     .setNetworkSpecifier(specifier)
                     .build();
 
