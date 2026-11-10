@@ -41,3 +41,9 @@ Choose one of eight playable classes before entering a mission. Each class has d
 
 ## Third-party project
 Three.js is distributed under the MIT License. The project is an original prototype and is not affiliated with or endorsed by Call of Duty.
+
+
+## Iranian Army defenders update
+- Enemy faction is represented as fictional Iranian Army Ground Forces-inspired defenders, with khaki/olive/brown DPM-style camouflage, field kit and small tricolour identifiers.
+- Defenders are stationed at posts inside the existing 144 x 80 m three-vault underground facility (20/40/20 m bays) and near both same-side access tunnels. They hold their positions and engage the player only after the player enters the facility/tunnel zone.
+- The original structure footprint and room layout are preserved; defensive props are visual set dressing, not structural changes.
