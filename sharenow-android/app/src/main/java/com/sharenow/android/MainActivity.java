@@ -1213,7 +1213,12 @@ public class MainActivity extends Activity {
                     throw new IOException("Integrity check failed for " + originalName);
                 }
             }
-            publishProgress("همهٔ فایل‌ها با موفقیت دریافت شدند.", 1, 1, 1, 1);
+            mainHandler.post(() -> {
+                if (progressBar != null) progressBar.setProgress(100);
+                if (progressText != null) progressText.setText("۱۰۰٪");
+                if (transferMetricsView != null) transferMetricsView.setText(
+                        "حجم نهایی دریافت: " + formatBytes(totalBytes));
+            });
             recordTransferHistory("دریافت", fileCount, totalBytes, socket.getInetAddress().getHostAddress());
             publishStatus("انتقال کامل شد؛ فایل‌ها در Downloads/ShareNow ذخیره شدند.");
         } finally {
@@ -1648,7 +1653,10 @@ public class MainActivity extends Activity {
         mainHandler.post(() -> {
             setStatus(message);
             if (progressBar != null) progressBar.setProgress(value);
-            if (progressText != null) progressText.setText(value + "٪");
+            if (progressText != null) {
+                String position = count > 1 ? " • " + Math.min(count, index + 1) + "/" + count : "";
+                progressText.setText(value + "٪" + position);
+            }
             if (transferMetricsView != null) transferMetricsView.setText(metrics);
         });
     }
