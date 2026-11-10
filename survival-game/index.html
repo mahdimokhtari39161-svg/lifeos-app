@@ -59,7 +59,7 @@
 </div>
 <div class="tip" id="tip">حرکت با دسته چپ • برای چرخش، سمت راست صفحه را بکش • شلیک را نگه دار</div>
 <div class="panel" id="menu"><div class="rosterShell">
- <header class="rosterHead"><div class="rosterBrand"><strong>WAR STRIKE</strong><small>UNDERGROUND BASE • 3D TACTICAL FPS</small></div><div class="rosterHeading"><h1>انتخاب نیروی عملیاتی</h1><p>نیروی خودت را انتخاب کن و به پایگاه زیرزمینی نزدیک شو؛ مدافعان از دو تونل دسترسی هم‌سمت پایگاه دفاع می‌کنند.</p></div><div class="rosterCount">۸ کلاس رزمی</div></header>
+ <header class="rosterHead"><div class="rosterBrand"><strong>WAR STRIKE</strong><small>UNDERGROUND BASE • 3D TACTICAL FPS</small></div><div class="rosterHeading"><h1>انتخاب نیروی عملیاتی</h1><p>نیروی خودت را انتخاب کن و به پایگاه زیرزمینی نفوذ کن؛ مدافعان نیروی زمینی ارتش ایران با استتار خاکی و سبز از دو تونل و سالن مرکزی دفاع می‌کنند.</p></div><div class="rosterCount">۸ کلاس رزمی</div></header>
  <div class="rosterLayout">
   <div class="classGrid" id="classGrid">
    <button class="classCard isSelected" data-character="soldier" type="button"><span class="classArt" data-portrait="0"></span><span class="classLabel"><b>سرباز</b><small>SOLDIER</small></span></button>
@@ -127,7 +127,7 @@ function box(parent,x,y,z,sx,sy,sz,material){let o=new THREE.Mesh(new THREE.BoxG
 function sphere(parent,x,y,z,r,material,seg=16){let o=new THREE.Mesh(new THREE.SphereGeometry(r,seg,12),material);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
 function cylinder(parent,x,y,z,rt,rb,h,material,seg=12){let o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),material);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
 function init(){
- scene=new THREE.Scene();scene.background=new THREE.Color(0x737a73);scene.fog=new THREE.FogExp2(0x737a73,.010);
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x343d3b);scene.fog=new THREE.FogExp2(0x424a45,.006);
  camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,.08,220);camera.rotation.order='YXZ';
  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;$('world').appendChild(renderer.domElement);
  scene.add(new THREE.HemisphereLight(0xd9e6ee,0x46503b,2.0));let sun=new THREE.DirectionalLight(0xffe2b6,3.0);sun.position.set(-35,55,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;scene.add(sun);
@@ -245,11 +245,11 @@ function getDefenderCamo(){
  if(defenderCamo)return defenderCamo;
  const c=document.createElement('canvas');c.width=256;c.height=256;const ctx=c.getContext('2d');
  ctx.fillStyle='#9a8d69';ctx.fillRect(0,0,256,256);
- const colors=['#6d7654','#4c5942','#b2a17a','#746348','#8e7954','#596044'];
- for(let i=0;i<190;i++){ctx.fillStyle=colors[i%colors.length];ctx.beginPath();const x=Math.random()*256,y=Math.random()*256;ctx.ellipse(x,y,Math.random()*15+4,Math.random()*8+3,Math.random()*Math.PI,0,Math.PI*2);ctx.fill()}
+ const colors=['#6d7654','#4c5942','#b2a17a','#746348','#8e7954','#596044','#c2ae82'];
+ for(let i=0;i<260;i++){ctx.fillStyle=colors[Math.floor(Math.random()*colors.length)];ctx.beginPath();const x=Math.random()*256,y=Math.random()*256;ctx.moveTo(x,y);for(let k=0;k<7;k++){const a=k/7*Math.PI*2,r=rnd(5,19);ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r*.72)}ctx.closePath();ctx.fill()}
  const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(2,2);tex.colorSpace=THREE.SRGBColorSpace;defenderCamo=tex;return tex;
 }
-function makeSoldier(){
+function makeSoldier(role='rifleman'){
  const g=new THREE.Group(),health=2+Math.floor(wave*.25);
  if(soldierTemplate){
   const model=cloneSkeleton(soldierTemplate);
@@ -259,6 +259,13 @@ function makeSoldier(){
   const scaledBounds=new THREE.Box3().setFromObject(model);model.position.y-=scaledBounds.min.y;
   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
   g.add(model);
+  // Iranian Army-inspired field kit: earth-tone plate carrier, utility pouches and a small tricolour shoulder identifier.
+  const kitMat=mat(role==='heavy'?0x3e4938:0x4c5140,.96),patchGreen=mat(0x23934b),patchWhite=mat(0xe8e6d9),patchRed=mat(0xc83c32);
+  box(model,0,.98,-.205,.43,.43,.075,kitMat);
+  for(const px of [-.15,-.05,.05,.15])box(model,px,.94,-.25,.065,.13,.045,kitMat);
+  box(model,-.245,1.22,-.045,.13,.075,.018,patchGreen);box(model,-.245,1.195,-.046,.13,.025,.019,patchWhite);box(model,-.245,1.17,-.046,.13,.025,.019,patchRed);
+  if(role==='officer'){const beret=mat(0x4b5741);sphere(model,0,1.79,0,.22,beret,12)}
+  if(role==='heavy'){for(const px of [-.22,.22])box(model,px,1.05,-.15,.12,.19,.11,kitMat)}
   const hand=model.getObjectByName('mixamorigRightHand')||model.getObjectByName('RightHand')||model.getObjectByName('rightHand');
   if(hand)makeEnemyRifle(hand);
   const mixer=new THREE.AnimationMixer(model),actions={};
@@ -274,14 +281,18 @@ function makeSoldier(){
  let arms=[],legs=[];
  for(let side of [-1,1]){let arm=new THREE.Group();arm.position.set(side*.36,1.42,0);g.add(arm);cylinder(arm,0,-.22,0,.095,.11,.48,uniform);sphere(arm,0,-.46,-.015,.09,skin,10);arms.push(arm);let leg=new THREE.Group();leg.position.set(side*.16,.83,0);g.add(leg);box(leg,0,-.23,0,.2,.5,.22,uniform);box(leg,0,-.49,-.045,.22,.13,.34,boots);legs.push(leg)}
  box(g,0,1.12,-.27,.12,.12,.62,gunmat);box(g,0,1.1,-.55,.055,.055,.5,gunmat);
+ // Earth-coloured chest rig and small green-white-red shoulder patch.
+ box(g,0,1.2,-.205,.46,.42,.075,vest);for(const px of [-.15,-.05,.05,.15])box(g,px,1.18,-.25,.065,.13,.04,vest);
+ box(g,-.29,1.43,-.02,.12,.07,.018,mat(0x23934b));box(g,-.29,1.405,-.021,.12,.023,.019,mat(0xe8e6d9));box(g,-.29,1.38,-.022,.12,.023,.019,mat(0xc83c32));
  g.userData={health,arms,legs,phase:Math.random()*6};return g;
 }
+const guardPosts=[[-12,-31],[-4,-28],[5,-29],[12,-31],[-14,-12],[14,-12],[-12,8],[12,8],[-5,22],[5,22],[8.25,-38],[8.25,34]];
 function spawnEnemy(){
  if(!soldierTemplate&&!soldierFailed)return false;
- const x=rnd(-17,17),z=rnd(-28,-8),g=makeSoldier();g.position.set(x,0,z);g.rotation.y=Math.PI+rnd(-.25,.25);scene.add(g);
  const roles=['rifleman','rifleman','rifleman','marksman','heavy','officer'],role=roles[Math.floor(Math.random()*roles.length)];
+ const post=guardPosts[(spawned+Math.floor(Math.random()*guardPosts.length))%guardPosts.length],x=post[0]+rnd(-1.3,1.3),z=post[1]+rnd(-1.5,1.5),g=makeSoldier(role);g.position.set(x,0,z);g.rotation.y=Math.atan2(8.25-x,-45-z);scene.add(g);
  g.userData.guardRole=role;
- const e={mesh:g,hp:g.userData.health+(role==='heavy'?2:0),max:g.userData.health,speed:(role==='heavy'?.72:role==='marksman'?.82:1.05)+wave*.035,attack:rnd(.65,1.4),hit:0,mixer:g.userData.mixer,dead:false,role,homeX:x,homeZ:z};
+ const e={mesh:g,hp:g.userData.health+(role==='heavy'?2:0),max:g.userData.health,speed:0,attack:rnd(.65,1.4),hit:0,mixer:g.userData.mixer,dead:false,role,homeX:x,homeZ:z};
  enemyList.push(e);return true
 }
 function updateHud(){$('hp').textContent=Math.max(0,Math.ceil(hp));$('hpbar').style.width=clamp(hp/selectedClass.hp*100,0,100)+'%';$('wave').textContent=wave.toLocaleString('fa-IR');$('kills').textContent=kills.toLocaleString('fa-IR');$('ammo').textContent=ammo+'/'+reserve}
@@ -309,15 +320,14 @@ function enemyShoot(enemy,distance){
  if(willHit){let damage=rnd(3.5,6.5)*(armorTime>0?.35:1);hp-=damage;timeSinceHit=0;updateHud();if(hp<=0)gameOver()}
 }
 function updateEnemies(dt){
+ const insideBase=(player.x>-22&&player.x<22&&player.z>-57&&player.z<55);
  for(let e of enemyList){
   const p=e.mesh.position,dx=player.x-p.x,dz=player.z-p.z,d=Math.hypot(dx,dz);
-  e.mesh.rotation.y=Math.atan2(dx,dz);
+  if(insideBase&&d<30)e.mesh.rotation.y=Math.atan2(dx,dz);
   if(e.mixer)e.mixer.update(dt);
-  const moveName=d>22?'run':d>14?'walk':'idle';setEnemyAnimation(e,moveName);
-  if(scanTime<=0){
-   if(d>2.35){if(d>14){p.x+=dx/d*e.speed*(e.hit>0?.4:1)*dt;p.z+=dz/d*e.speed*(e.hit>0?.4:1)*dt}else{e.attack-=dt;if(e.attack<=0){enemyShoot(e,d);e.attack=rnd(1.25,2.05)}}}
-   else {e.attack-=dt;if(e.attack<=0){let damage=rnd(7,11)*(armorTime>0?.35:1);hp-=damage;timeSinceHit=0;e.attack=.9;updateHud();if(hp<=0){gameOver();return}}}
-  }
+  setEnemyAnimation(e,'idle');
+  // Defenders hold their assigned posts; they only engage once the player enters the underground complex or access tunnel.
+  if(insideBase&&scanTime<=0&&d<30){e.attack-=dt;if(e.attack<=0){enemyShoot(e,d);e.attack=rnd(1.1,2.0)}}
   if(e.hit>0){e.hit-=dt;e.mesh.scale.setScalar(1.025); }else e.mesh.scale.setScalar(1);
   if(!e.mixer&&e.mesh.userData.legs){let u=e.mesh.userData;u.phase+=dt*8;u.legs[0].rotation.x=Math.sin(u.phase)*.65;u.legs[1].rotation.x=-Math.sin(u.phase)*.65;u.arms[0].rotation.x=-.35+Math.sin(u.phase)*.12;u.arms[1].rotation.x=-.35-Math.sin(u.phase)*.12}
  }
@@ -336,7 +346,7 @@ init();
 let rightTouch=null,lastX=0,lastY=0;renderer?.domElement?.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'){if(running&&!paused){renderer.domElement.requestPointerLock?.()}}else if(e.clientX>innerWidth*.42&&e.clientY>80){rightTouch=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)}});renderer?.domElement?.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&document.pointerLockElement===renderer.domElement)look(e.movementX,e.movementY);else if(e.pointerId===rightTouch){look(e.clientX-lastX,e.clientY-lastY);lastX=e.clientX;lastY=e.clientY}});renderer?.domElement?.addEventListener('pointerup',e=>{if(e.pointerId===rightTouch)rightTouch=null});
 renderer.domElement.addEventListener('mousedown',e=>{if(e.button===0&&running&&!paused){fireHeld=true;fire()}});addEventListener('mouseup',e=>{if(e.button===0)fireHeld=false});
 addEventListener('keydown',e=>{if(e.code==='KeyR')reload();if(e.code==='ShiftLeft')sprinting=true;if(e.code==='Space')fireHeld=true;if(e.code==='KeyW')joy.y=-1;if(e.code==='KeyS')joy.y=1;if(e.code==='KeyA')joy.x=-1;if(e.code==='KeyD')joy.x=1});addEventListener('keyup',e=>{if(e.code==='ShiftLeft')sprinting=false;if(e.code==='Space')fireHeld=false;if(['KeyW','KeyS'].includes(e.code))joy.y=0;if(['KeyA','KeyD'].includes(e.code))joy.x=0});addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer?.domElement)look(e.movementX,e.movementY)});
-document.querySelectorAll('.classCard').forEach(card=>card.addEventListener('click',()=>setCharacter(card.dataset.character)));$('abilityBtn').onclick=activateAbility;$('start').onclick=()=>startGame(false);$('continue').onclick=()=>{let ok=load();startGame(ok)};$('pauseBtn').onclick=pause;$('resume').onclick=()=>{paused=false;$('pausePanel').classList.add('hidden');running=true;clock.start();raf=requestAnimationFrame(loop)};$('saveExit').onclick=()=>{save();running=false;paused=false;$('pausePanel').classList.add('hidden');$('menu').classList.remove('hidden');$('controls').classList.add('hidden')};$('nextWave').onclick=()=>{wave++;hp=Math.min(100,hp+15);ammo=selectedClass.magazine;reserve=Math.min(320,reserve+30);startGame(true)};$('saveWave').onclick=()=>{$('wavePanel').classList.add('hidden');$('menu').classList.remove('hidden');save()};$('retry').onclick=()=>startGame(false);$('home').onclick=()=>{$('overPanel').classList.add('hidden');$('menu').classList.remove('hidden')};$('how').onclick=()=>alert('موبایل: دسته سمت چپ برای حرکت، کشیدن سمت راست تصویر برای چرخش دوربین، دکمه قرمز برای شلیک، دکمه دایره‌ای برای نشانه‌گیری، خشاب برای بارگذاری و دویدن برای سرعت بیشتر. رایانه: WASD حرکت، ماوس چرخش، کلیک چپ شلیک، R خشاب و Shift دویدن. مدافعان از داخل سازه به سمت ورودی می‌آیند و از پایگاه دفاع می‌کنند؛ از موانع ورودی استفاده کن.');
+document.querySelectorAll('.classCard').forEach(card=>card.addEventListener('click',()=>setCharacter(card.dataset.character)));$('abilityBtn').onclick=activateAbility;$('start').onclick=()=>startGame(false);$('continue').onclick=()=>{let ok=load();startGame(ok)};$('pauseBtn').onclick=pause;$('resume').onclick=()=>{paused=false;$('pausePanel').classList.add('hidden');running=true;clock.start();raf=requestAnimationFrame(loop)};$('saveExit').onclick=()=>{save();running=false;paused=false;$('pausePanel').classList.add('hidden');$('menu').classList.remove('hidden');$('controls').classList.add('hidden')};$('nextWave').onclick=()=>{wave++;hp=Math.min(100,hp+15);ammo=selectedClass.magazine;reserve=Math.min(320,reserve+30);startGame(true)};$('saveWave').onclick=()=>{$('wavePanel').classList.add('hidden');$('menu').classList.remove('hidden');save()};$('retry').onclick=()=>startGame(false);$('home').onclick=()=>{$('overPanel').classList.add('hidden');$('menu').classList.remove('hidden')};$('how').onclick=()=>alert('موبایل: دسته سمت چپ برای حرکت، کشیدن سمت راست تصویر برای چرخش دوربین، دکمه قرمز برای شلیک، دکمه دایره‌ای برای نشانه‌گیری، خشاب برای بارگذاری و دویدن برای سرعت بیشتر. رایانه: WASD حرکت، ماوس چرخش، کلیک چپ شلیک، R خشاب و Shift دویدن. مدافعان ارتش ایران در مواضع داخل سازه مستقرند و از سالن مرکزی و دو تونل دفاع می‌کنند؛ تا ورود به محدوده پایگاه به تو حمله نمی‌کنند.');
 $('soundBtn').onclick=()=>{soundOn=!soundOn;$('soundBtn').textContent=soundOn?'♪ صدا روشن':'♪ صدا خاموش'};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)pause()});
 loadCharacterAtlas();setCharacter('soldier');
