@@ -514,10 +514,6 @@ public class MainActivity extends Activity {
     }
 
     private void startReceiveOnCurrentWifi() {
-        if (!isWifiPermissionGranted()) {
-            requestWifiPermissionAndStartHotspot();
-            return;
-        }
         startReceiveTransport();
         receiverInfoView.setText("کد امنیتی انتقال: " + sessionPin
                 + "\nIP این گوشی: " + getLocalIpAddress()
