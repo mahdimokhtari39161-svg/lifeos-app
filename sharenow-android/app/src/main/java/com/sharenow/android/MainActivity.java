@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -120,6 +121,8 @@ public class MainActivity extends ComponentActivity {
     private final List<ReceivedBundle> receivedBundles = new ArrayList<>();
 
     private LinearLayout peerList;
+    private LinearLayout sendPanel;
+    private LinearLayout receivePanel;
     private TextView selectedFilesView;
     private TextView receiverInfoView;
     private TextView statusView;
@@ -163,10 +166,12 @@ public class MainActivity extends ComponentActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         qrScanLauncher = registerForActivityResult(new ScanContract(), result -> {
-            if (result.getContents() != null) {
-                handleConnectionQr(result.getContents());
+            String value = result.getContents();
+            if (value != null && !value.trim().isEmpty()) {
+                handleConnectionQr(value.trim());
             } else {
-                setStatus("اسکن لغو شد؛ برای اتصال دوباره QR را اسکن کنید.");
+                setStatus("QR خوانده نشد یا اسکن لغو شد؛ دوباره تلاش کنید.");
+                showToast("اسکن کامل نشد؛ کد را داخل کادر دوربین ثابت نگه دارید.");
             }
         });
         getWindow().setStatusBarColor(BG);
@@ -227,6 +232,8 @@ public class MainActivity extends ComponentActivity {
             showToast("دریافت فایل از منوی اشتراک‌گذاری ناموفق بود: " + safeMessage(e));
         }
         if (pickedFiles.size() > before) {
+            if (sendPanel != null) sendPanel.setVisibility(View.VISIBLE);
+            if (receivePanel != null) receivePanel.setVisibility(View.GONE);
             updatePickedSummary();
             setStatus("فایل‌های اشتراک‌گذاری‌شده آماده‌اند؛ QR یا گوشی مقصد را انتخاب کنید.");
             showToast((pickedFiles.size() - before) + " فایل به فهرست ارسال اضافه شد.");
@@ -261,28 +268,23 @@ public class MainActivity extends ComponentActivity {
         LinearLayout.LayoutParams quickParams = matchWrap();
         quickParams.bottomMargin = dp(16);
         page.addView(quickActions, quickParams);
-        Button sendHero = button("➤  ارسال فایل", true);
-        sendHero.setTextColor(WHITE);
-        sendHero.setTextSize(18);
-        sendHero.setMinHeight(dp(76));
-        GradientDrawable sendHeroBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{Color.rgb(20, 132, 255), Color.rgb(35, 91, 220)});
-        sendHeroBg.setCornerRadius(dp(20));
-        sendHero.setBackground(sendHeroBg);
-        quickActions.addView(sendHero, new LinearLayout.LayoutParams(0, dp(78), 1));
-        Button receiveHero = button("⬇  دریافت فایل", true);
-        receiveHero.setTextColor(WHITE);
-        receiveHero.setTextSize(18);
-        receiveHero.setMinHeight(dp(76));
-        GradientDrawable receiveHeroBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{Color.rgb(28, 190, 132), Color.rgb(12, 143, 111)});
-        receiveHeroBg.setCornerRadius(dp(20));
-        receiveHero.setBackground(receiveHeroBg);
-        LinearLayout.LayoutParams receiveHeroParams = new LinearLayout.LayoutParams(0, dp(78), 1);
-        receiveHeroParams.leftMargin = dp(10);
+        Button sendHero = button("➤\nارسال", true);
+        styleHomeTile(sendHero, Color.rgb(20, 132, 255), Color.rgb(35, 91, 220));
+        quickActions.addView(sendHero, new LinearLayout.LayoutParams(0, dp(88), 1));
+        Button receiveHero = button("⬇\nدریافت", true);
+        styleHomeTile(receiveHero, Color.rgb(28, 190, 132), Color.rgb(12, 143, 111));
+        LinearLayout.LayoutParams receiveHeroParams = new LinearLayout.LayoutParams(0, dp(88), 1);
+        receiveHeroParams.leftMargin = dp(8);
         quickActions.addView(receiveHero, receiveHeroParams);
+        Button filesHero = button("▣\nفایل‌ها", false);
+        styleHomeTile(filesHero, Color.rgb(117, 99, 255), Color.rgb(72, 76, 190));
+        LinearLayout.LayoutParams filesHeroParams = new LinearLayout.LayoutParams(0, dp(88), 1);
+        filesHeroParams.leftMargin = dp(8);
+        quickActions.addView(filesHero, filesHeroParams);
 
         LinearLayout receiveCard = card(page);
+        receiveCard.setVisibility(View.GONE);
+        receivePanel = receiveCard;
         addSectionTitle(receiveCard, "دریافت فایل", "گوشی شما مقصد انتقال می‌شود");
         hotspotButton = button("ساخت شبکهٔ آفلاین و شروع دریافت", true);
         receiveCard.addView(hotspotButton, matchWrap());
@@ -335,14 +337,34 @@ public class MainActivity extends ComponentActivity {
         installReceivedButton.setOnClickListener(v -> showReceivedBundles());
 
         LinearLayout sendCard = card(page);
+        sendCard.setVisibility(View.GONE);
+        sendPanel = sendCard;
         LinearLayout.LayoutParams sendCardParams = matchWrap();
         sendCardParams.topMargin = dp(14);
         sendCard.setLayoutParams(sendCardParams);
         addSectionTitle(sendCard, "ارسال فایل", "هر نوع فایل؛ انتخاب تکی یا چندتایی");
 
-        Button chooseButton = button("انتخاب عکس، فیلم، سند و فایل‌ها", true);
-        sendCard.addView(chooseButton, matchWrap());
-        chooseButton.setOnClickListener(v -> openFilePicker());
+        LinearLayout mediaCategories = new LinearLayout(this);
+        mediaCategories.setOrientation(LinearLayout.HORIZONTAL);
+        mediaCategories.setGravity(Gravity.CENTER);
+        sendCard.addView(mediaCategories, matchWrap());
+
+        Button photosButton = button("🖼\nعکس", false);
+        Button videosButton = button("▶\nویدئو", false);
+        Button musicButton = button("♫\nموسیقی", false);
+        Button filesButton = button("▤\nفایل‌ها", false);
+        Button[] categoryButtons = {photosButton, videosButton, musicButton, filesButton};
+        for (int i = 0; i < categoryButtons.length; i++) {
+            categoryButtons[i].setTextSize(11);
+            categoryButtons[i].setMinHeight(dp(68));
+            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(68), 1);
+            if (i > 0) itemParams.leftMargin = dp(6);
+            mediaCategories.addView(categoryButtons[i], itemParams);
+        }
+        photosButton.setOnClickListener(v -> openFilePicker("image/*"));
+        videosButton.setOnClickListener(v -> openFilePicker("video/*"));
+        musicButton.setOnClickListener(v -> openFilePicker("audio/*"));
+        filesButton.setOnClickListener(v -> openFilePicker("*/*"));
 
         Button chooseFolderButton = button("انتخاب یک پوشهٔ کامل", false);
         LinearLayout.LayoutParams folderButtonParams = matchWrap();
@@ -390,11 +412,18 @@ public class MainActivity extends ComponentActivity {
         peersParams.topMargin = dp(6);
         sendCard.addView(peerList, peersParams);
 
-        sendHero.setOnClickListener(v -> scroll.smoothScrollTo(0, sendCard.getTop()));
+        sendHero.setOnClickListener(v -> {
+            receivePanel.setVisibility(View.GONE);
+            sendPanel.setVisibility(View.VISIBLE);
+            scroll.post(() -> scroll.smoothScrollTo(0, sendPanel.getTop()));
+        });
         receiveHero.setOnClickListener(v -> {
-            scroll.smoothScrollTo(0, receiveCard.getTop());
+            sendPanel.setVisibility(View.GONE);
+            receivePanel.setVisibility(View.VISIBLE);
+            scroll.post(() -> scroll.smoothScrollTo(0, receivePanel.getTop()));
             requestWifiPermissionAndStartHotspot();
         });
+        filesHero.setOnClickListener(v -> showLocalFiles());
 
         Button sendButton = button("ارسال امن فایل‌ها", true);
         LinearLayout.LayoutParams sendParams = matchWrap();
@@ -484,6 +513,90 @@ public class MainActivity extends ComponentActivity {
         return view;
     }
 
+    private void styleHomeTile(Button tile, int startColor, int endColor) {
+        tile.setTextColor(WHITE);
+        tile.setTextSize(16);
+        tile.setGravity(Gravity.CENTER);
+        tile.setMinHeight(dp(88));
+        tile.setPadding(dp(4), dp(6), dp(4), dp(6));
+        GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{startColor, endColor});
+        background.setCornerRadius(dp(22));
+        tile.setBackground(background);
+    }
+
+    private void showLocalFiles() {
+        if (Build.VERSION.SDK_INT < 29) {
+            File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File folder = base == null ? null : new File(base, "ShareNow");
+            String location = folder == null ? "پوشهٔ Downloads/ShareNow" : folder.getAbsolutePath();
+            new AlertDialog.Builder(this)
+                    .setTitle("فایل‌های ShareNow")
+                    .setMessage("فایل‌های دریافتی در این مسیر ذخیره می‌شوند:\n" + location
+                            + "\nبرای بازکردن آن‌ها از فایل‌منیجر گوشی استفاده کنید.")
+                    .setPositiveButton("انتخاب فایل برای ارسال", (dialog, which) -> openFilePicker())
+                    .setNegativeButton("سوابق انتقال", (dialog, which) -> showTransferHistory())
+                    .show();
+            return;
+        }
+
+        List<Uri> uris = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        List<String> mimeTypes = new ArrayList<>();
+        try (Cursor cursor = getContentResolver().query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Downloads._ID, MediaStore.MediaColumns.DISPLAY_NAME,
+                        MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.MIME_TYPE},
+                MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?",
+                new String[]{Environment.DIRECTORY_DOWNLOADS + "/ShareNow/%"},
+                MediaStore.MediaColumns.DATE_ADDED + " DESC")) {
+            if (cursor != null) {
+                int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID);
+                int nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME);
+                int sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE);
+                int mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE);
+                while (cursor.moveToNext()) {
+                    long id = cursor.getLong(idColumn);
+                    String name = cursor.getString(nameColumn);
+                    long size = cursor.isNull(sizeColumn) ? 0L : cursor.getLong(sizeColumn);
+                    String mime = cursor.getString(mimeColumn);
+                    uris.add(ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id));
+                    labels.add((name == null ? "فایل بدون نام" : name) + "  •  " + formatBytes(size));
+                    mimeTypes.add(mime == null || mime.isEmpty() ? "*/*" : mime);
+                }
+            }
+        } catch (Exception e) {
+            showToast("خواندن فایل‌های دریافتی ناموفق بود: " + safeMessage(e));
+            return;
+        }
+
+        if (uris.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("فایل‌های ShareNow")
+                    .setMessage("هنوز فایلی در پوشهٔ Downloads/ShareNow دریافت نشده است.")
+                    .setPositiveButton("انتخاب فایل برای ارسال", (dialog, which) -> openFilePicker())
+                    .setNegativeButton("سوابق انتقال", (dialog, which) -> showTransferHistory())
+                    .show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("فایل‌های دریافتی • " + uris.size())
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    try {
+                        Intent open = new Intent(Intent.ACTION_VIEW);
+                        open.setDataAndType(uris.get(which), mimeTypes.get(which));
+                        open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(open);
+                    } catch (Exception e) {
+                        showToast("برنامه‌ای برای بازکردن این فایل پیدا نشد.");
+                    }
+                })
+                .setPositiveButton("سوابق انتقال", (dialog, which) -> showTransferHistory())
+                .setNegativeButton("بستن", null)
+                .show();
+    }
+
     private Button button(String label, boolean primary) {
         Button button = new Button(this);
         button.setText(label);
@@ -530,19 +643,39 @@ public class MainActivity extends ComponentActivity {
     private void startQrScanner() {
         try {
             if (qrScanLauncher == null) {
-                showToast("اسکنر هنوز آماده نشده است؛ یک بار برنامه را دوباره باز کنید.");
+                showToast("اسکنر هنوز آماده نشده است؛ برنامه را دوباره باز کنید.");
                 return;
             }
             ScanOptions options = new ScanOptions();
             options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
-            options.setPrompt("کد QR گوشی دریافت‌کننده را داخل کادر قرار دهید");
+            options.setPrompt("QR گوشی دریافت‌کننده را داخل کادر قرار دهید");
             options.setBeepEnabled(false);
             options.setOrientationLocked(false);
             options.setCameraId(0);
             options.setBarcodeImageEnabled(false);
+            options.setTimeout(60000);
             qrScanLauncher.launch(options);
+            setStatus("دوربین آمادهٔ اسکن QR است؛ کد گوشی مقصد را روبه‌روی دوربین بگیرید.");
+        } catch (SecurityException e) {
+            showToast("مجوز دوربین داده نشده است. مجوز Camera را برای ShareNow فعال کنید.");
         } catch (Exception e) {
             showToast("بازکردن دوربین اسکن ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private boolean isValidIpv4Address(String ip) {
+        if (ip == null) return false;
+        String[] parts = ip.split("\\.", -1);
+        if (parts.length != 4) return false;
+        try {
+            for (String part : parts) {
+                if (part.isEmpty() || part.length() > 3) return false;
+                int octet = Integer.parseInt(part);
+                if (octet < 0 || octet > 255) return false;
+            }
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 
@@ -588,15 +721,16 @@ public class MainActivity extends ComponentActivity {
 
     private void handleConnectionQr(String contents) {
         try {
+            contents = contents == null ? "" : contents.trim();
             String[] fields = contents.split("\\|", -1);
             if (fields.length < 5 || !fields[0].equals("SHARENOW") || !fields[1].equals("2")) {
                 showToast("این کد QR مربوط به اتصال ShareNow نیست.");
                 return;
             }
-            String ip = fields[2];
-            int port = Integer.parseInt(fields[3]);
-            String pin = fields[4];
-            if (port != TCP_PORT || pin.length() != 8 || !ip.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) {
+            String ip = fields[2].trim();
+            int port = Integer.parseInt(fields[3].trim());
+            String pin = fields[4].trim();
+            if (port != TCP_PORT || !pin.matches("[0-9]{8}") || !isValidIpv4Address(ip)) {
                 showToast("اطلاعات اتصال داخل QR معتبر نیست.");
                 return;
             }
@@ -904,9 +1038,13 @@ public class MainActivity extends ComponentActivity {
     }
 
     private void openFilePicker() {
+        openFilePicker("*/*");
+    }
+
+    private void openFilePicker(String mimeType) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(mimeType == null || mimeType.trim().isEmpty() ? "*/*" : mimeType);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
