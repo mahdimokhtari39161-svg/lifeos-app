@@ -1081,6 +1081,7 @@ public class MainActivity extends Activity {
 
     private void startReceiveTransport() {
         if (receiving) return;
+        resetTransferMetrics();
         sessionPin = String.format(Locale.US, "%08d", secureRandom.nextInt(100_000_000));
         try {
             serverSocket = new ServerSocket();
@@ -1182,7 +1183,7 @@ public class MainActivity extends Activity {
                     final long fileWritten = written;
                     final int fileIndex = i;
                     publishProgress("دریافت: " + originalName,
-                            fileCount, fileIndex, totalBytes + fileWritten, plainSize);
+                            fileCount, fileIndex, fileWritten, plainSize);
                 }
 
                 byte[] finalPlain = cipher.doFinal();
@@ -1213,6 +1214,7 @@ public class MainActivity extends Activity {
                 }
             }
             publishProgress("همهٔ فایل‌ها با موفقیت دریافت شدند.", 1, 1, 1, 1);
+            recordTransferHistory("دریافت", fileCount, totalBytes, socket.getInetAddress().getHostAddress());
             publishStatus("انتقال کامل شد؛ فایل‌ها در Downloads/ShareNow ذخیره شدند.");
         } finally {
             if (currentTarget != null) currentTarget.abort();
@@ -1305,6 +1307,7 @@ public class MainActivity extends Activity {
         }
         final List<PickedFile> files = new ArrayList<>(pickedFiles);
         setStatus("در حال اتصال امن به گوشی مقصد...");
+        resetTransferMetrics();
         progressBar.setProgress(0);
         transferExecutor.execute(() -> transferFiles(ip, pin, files));
     }
@@ -1388,6 +1391,7 @@ public class MainActivity extends Activity {
             }
 
             publishProgress("انتقال همهٔ فایل‌ها کامل شد.", files.size(), files.size(), totalBytes, totalBytes);
+            recordTransferHistory("ارسال", files.size(), totalBytes, ip);
             publishStatus("ارسال موفق بود؛ " + files.size() + " فایل به گوشی مقصد رسید.");
             mainHandler.post(() -> showToast("انتقال با موفقیت انجام شد."));
         } catch (Exception e) {
@@ -1622,18 +1626,106 @@ public class MainActivity extends Activity {
     }
 
     private void publishProgress(String message, int count, int index, long completed, long total) {
-        int percent;
-        if (total <= 0) {
-            percent = 0;
-        } else {
-            percent = (int) Math.max(0, Math.min(100, (completed * 100.0d) / total));
+        int percent = total <= 0 ? 0 : (int) Math.max(0, Math.min(100, (completed * 100.0d) / total));
+        long now = System.currentTimeMillis();
+        synchronized (this) {
+            if (lastSpeedSampleAt == 0L || completed < lastSpeedSampleBytes) {
+                lastSpeedSampleAt = now;
+                lastSpeedSampleBytes = completed;
+                currentSpeedBytesPerSecond = 0.0d;
+            } else if (now - lastSpeedSampleAt >= 500L) {
+                long elapsed = now - lastSpeedSampleAt;
+                long delta = completed - lastSpeedSampleBytes;
+                currentSpeedBytesPerSecond = elapsed > 0L ? (delta * 1000.0d) / elapsed : 0.0d;
+                lastSpeedSampleAt = now;
+                lastSpeedSampleBytes = completed;
+            }
         }
         final int value = percent;
+        final String metrics = "سرعت لحظه‌ای: " + formatBytesPerSecond(currentSpeedBytesPerSecond)
+                + " • " + formatBytes(Math.max(0L, completed))
+                + (total > 0 ? " از " + formatBytes(total) : "");
         mainHandler.post(() -> {
             setStatus(message);
-            progressBar.setProgress(value);
-            progressText.setText(value + "٪");
+            if (progressBar != null) progressBar.setProgress(value);
+            if (progressText != null) progressText.setText(value + "٪");
+            if (transferMetricsView != null) transferMetricsView.setText(metrics);
         });
+    }
+
+    private synchronized void resetTransferMetrics() {
+        lastSpeedSampleAt = 0L;
+        lastSpeedSampleBytes = 0L;
+        currentSpeedBytesPerSecond = 0.0d;
+        mainHandler.post(() -> {
+            if (transferMetricsView != null) transferMetricsView.setText("سرعت لحظه‌ای: آماده • حجم انتقال: ۰ بایت");
+            if (progressBar != null) progressBar.setProgress(0);
+            if (progressText != null) progressText.setText("۰٪");
+        });
+    }
+
+    private String formatBytesPerSecond(double bytesPerSecond) {
+        if (bytesPerSecond < 1.0d) return "در حال محاسبه";
+        return formatBytes((long) bytesPerSecond) + "/s";
+    }
+
+    private void recordTransferHistory(String direction, int fileCount, long bytes, String peer) {
+        String time = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(new Date());
+        String safePeer = peer == null ? "دستگاه نزدیک" : peer.replace("|", "/").replace("\n", " ").replace("\r", " ");
+        String entry = time + "  •  " + direction + "  •  " + fileCount + " فایل  •  "
+                + formatBytes(bytes) + "  •  " + safePeer;
+        android.content.SharedPreferences preferences = getSharedPreferences("sharenow_transfer_history", MODE_PRIVATE);
+        String oldHistory = preferences.getString("items", "");
+        StringBuilder updated = new StringBuilder(entry);
+        if (!oldHistory.isEmpty()) {
+            String[] oldItems = oldHistory.split("\n");
+            int kept = 1;
+            for (String item : oldItems) {
+                if (kept >= 30) break;
+                if (!item.trim().isEmpty()) { updated.append("\n").append(item); kept++; }
+            }
+        }
+        preferences.edit().putString("items", updated.toString()).apply();
+        mainHandler.post(this::refreshHistoryPreview);
+    }
+
+    private void refreshHistoryPreview() {
+        if (historyPreviewView == null) return;
+        String history = getSharedPreferences("sharenow_transfer_history", MODE_PRIVATE).getString("items", "");
+        if (history.trim().isEmpty()) {
+            historyPreviewView.setText("هنوز انتقال موفقی ثبت نشده است.");
+            return;
+        }
+        String[] entries = history.split("\n");
+        StringBuilder preview = new StringBuilder("آخرین انتقال‌ها:\n");
+        for (int i = 0; i < Math.min(2, entries.length); i++) {
+            if (i > 0) preview.append("\n");
+            preview.append("• ").append(entries[i]);
+        }
+        historyPreviewView.setText(preview.toString());
+    }
+
+    private void showTransferHistory() {
+        String history = getSharedPreferences("sharenow_transfer_history", MODE_PRIVATE).getString("items", "");
+        if (history.trim().isEmpty()) { showToast("هنوز سابقه‌ای برای نمایش وجود ندارد."); return; }
+        TextView content = text(history.replace("\n", "\n\n"), 13, WHITE, false);
+        content.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(content);
+        new AlertDialog.Builder(this)
+                .setTitle("سوابق انتقال ShareNow")
+                .setView(scroll)
+                .setNeutralButton("پاک کردن سوابق", (dialog, which) ->
+                        new AlertDialog.Builder(this)
+                                .setMessage("همه سوابق انتقال پاک شود؟")
+                                .setNegativeButton("انصراف", null)
+                                .setPositiveButton("پاک کن", (confirm, selected) -> {
+                                    getSharedPreferences("sharenow_transfer_history", MODE_PRIVATE).edit().remove("items").apply();
+                                    refreshHistoryPreview();
+                                    showToast("سوابق انتقال پاک شد.");
+                                }).show())
+                .setPositiveButton("بستن", null)
+                .show();
     }
 
     private void setStatus(String message) {
