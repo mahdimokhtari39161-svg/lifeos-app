@@ -237,13 +237,33 @@ function makeEnemyRifle(hand){
  box(rifle,0,-.075,-.12,.052,.13,.07,poly);box(rifle,0,.075,-.08,.03,.025,.19,steel);
  hand.add(rifle);rifle.position.set(0,0,0);rifle.rotation.set(0,Math.PI,0);
 }
+function addArcSegments(points,radius,material){
+ const valid=points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z));
+ if(valid.length<2)return;
+ if(!buildCompound.arcGeometries)buildCompound.arcGeometries=new Map();
+ let geometry=buildCompound.arcGeometries.get(radius);
+ if(!geometry){geometry=new THREE.CylinderGeometry(radius,radius,1,8,1,false);buildCompound.arcGeometries.set(radius,geometry)}
+ const axis=new THREE.Vector3(0,1,0);
+ for(let i=1;i<valid.length;i++){
+  const a=valid[i-1],b=valid[i];
+  const direction=new THREE.Vector3().subVectors(b,a);
+  const length=direction.length();
+  if(!Number.isFinite(length)||length<1e-6)continue;
+  const segment=new THREE.Mesh(geometry,material);
+  segment.position.copy(a).add(b).multiplyScalar(.5);
+  segment.quaternion.setFromUnitVectors(axis,direction.multiplyScalar(1/length));
+  segment.scale.y=length;
+  segment.castShadow=true;segment.receiveShadow=true;
+  scene.add(segment);
+ }
+}
 function buildCompound(){
  const concrete=mat(0x686e69),reinforced=mat(0x454d4b,.72,.18),dark=mat(0x101a1b),metal=mat(0x333d3c,.38,.7),floorMat=mat(0x4b514d),roomMat=mat(0x65695f),warning=mat(0xb58b45),lightMat=new THREE.MeshStandardMaterial({color:0xc5d6bd,emissive:0x8aa68b,emissiveIntensity:1.1});
  // Scaled from the archived Underground_FabLab.obj: 144 x 80 m, three longitudinal vaults (20/40/20 m), 34 room floors, central hall and two same-side access tunnels.
  box(scene,0,-.28,-8,40,.55,72,reinforced);
  for(const x of [-20,-10,10,20])box(scene,x,2.15,-8,.75,4.8,72,concrete);
  const spans=[{cx:-15,w:10,spring:2.4,rise:2.6},{cx:0,w:20,spring:3.5,rise:4.2},{cx:15,w:10,spring:2.4,rise:2.6}];
- for(const bay of spans){for(let z=-36;z<=36;z+=6){const pts=[];for(let k=0;k<=12;k++){const t=Math.PI-(k/12)*Math.PI;pts.push(new THREE.Vector3(bay.cx+Math.cos(t)*bay.w/2,bay.spring+Math.sin(t)*bay.rise,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),24,.32,8,false),concrete);rib.castShadow=true;rib.receiveShadow=true;scene.add(rib)}}
+ for(const bay of spans){for(let z=-36;z<=36;z+=6){const pts=[];for(let k=0;k<=12;k++){const t=Math.PI-(k/12)*Math.PI;pts.push(new THREE.Vector3(bay.cx+Math.cos(t)*bay.w/2,bay.spring+Math.sin(t)*bay.rise,z))}addArcSegments(pts,.32,concrete)}}
  // Main assembly hall floor: 108 m long, centered in the 40 m central bay.
  box(scene,0,.015,0,20,.06,60,floorMat);
  // Room footprints transcribed from the prior OBJ model (model X=length, Y=width; game scale 0.5).
@@ -259,7 +279,7 @@ function buildCompound(){
  for(const zc of [-45,45]){
   box(scene,tunnelX,-.12,zc,3.2,.35,18,reinforced);
   for(const x of [tunnelX-1.65,tunnelX+1.65])box(scene,x,1.45,zc,.35,2.9,18,concrete);
-  for(let z=zc-9;z<=zc+9;z+=3){const pts=[];for(let k=0;k<=8;k++){const t=Math.PI-(k/8)*Math.PI;pts.push(new THREE.Vector3(tunnelX+Math.cos(t)*1.65,1.75+Math.sin(t)*1.25,z))}const rib=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),16,.16,7,false),concrete);scene.add(rib)}
+  for(let z=zc-9;z<=zc+9;z+=3){const pts=[];for(let k=0;k<=8;k++){const t=Math.PI-(k/8)*Math.PI;pts.push(new THREE.Vector3(tunnelX+Math.cos(t)*1.65,1.75+Math.sin(t)*1.25,z))}addArcSegments(pts,.16,concrete)}
   const sign=box(scene,tunnelX,3.2,zc-9,.9,.28,.12,warning);sign.rotation.z=0;
   for(const z of [zc-6,zc,zc+6]){const lamp=new THREE.PointLight(0xb9d1bd,.7,10);lamp.position.set(tunnelX,2.8,z);scene.add(lamp);box(scene,tunnelX,3,z,.5,.1,.2,lightMat)}
  }
