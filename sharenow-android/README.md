@@ -4,7 +4,7 @@ ShareNow is an Android-to-Android offline file-transfer app. It uses a local Wi-
 
 ## Current implementation
 
-- Pick multiple files from Android's document picker.
+- Pick multiple files or entire folders from Android's document picker; preserve folder structure.
 - Discover ShareNow receivers on the same local network using UDP broadcasts.
 - Start a local-only hotspot on Android 8.0+ so two phones can connect without an internet connection.
 - Manual IP entry is available when discovery is blocked by a router.
