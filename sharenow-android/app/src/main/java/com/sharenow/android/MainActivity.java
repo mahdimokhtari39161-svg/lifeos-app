@@ -1,0 +1,1136 @@
+package com.sharenow.android;
+
+import android.Manifest;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
+import android.provider.Settings;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
+public class MainActivity extends Activity {
+    private static final int PICK_FILES_REQUEST = 4101;
+    private static final int WIFI_PERMISSION_REQUEST = 4102;
+    private static final int TCP_PORT = 47890;
+    private static final int DISCOVERY_PORT = 47891;
+    private static final int BUFFER_SIZE = 256 * 1024;
+    private static final long MAX_FILE_SIZE = 200L * 1024L * 1024L * 1024L;
+
+    private static final int BG = Color.rgb(7, 27, 44);
+    private static final int CARD = Color.rgb(17, 45, 66);
+    private static final int TEAL = Color.rgb(19, 184, 166);
+    private static final int WHITE = Color.WHITE;
+    private static final int MUTED = Color.rgb(177, 198, 211);
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService transferExecutor = Executors.newSingleThreadExecutor();
+    private final SecureRandom secureRandom = new SecureRandom();
+    private final List<PickedFile> pickedFiles = new ArrayList<>();
+    private final Map<String, String> discoveredPeers = new LinkedHashMap<>();
+
+    private LinearLayout peerList;
+    private TextView selectedFilesView;
+    private TextView receiverInfoView;
+    private TextView statusView;
+    private TextView progressText;
+    private ProgressBar progressBar;
+    private EditText ipInput;
+    private EditText pinInput;
+    private Button receiveButton;
+    private Button hotspotButton;
+    private Button sameWifiButton;
+    private Button stopButton;
+    private Button discoverButton;
+
+    private WifiManager wifiManager;
+    private WifiManager.LocalOnlyHotspotReservation hotspotReservation;
+    private WifiManager.MulticastLock multicastLock;
+    private ServerSocket serverSocket;
+    private volatile boolean receiving = false;
+    private volatile boolean discoveryRunning = false;
+    private volatile boolean broadcasterRunning = false;
+    private volatile String sessionPin = "";
+    private Thread serverThread;
+    private Thread discoveryThread;
+    private Thread broadcasterThread;
+    private PowerManager.WakeLock transferWakeLock;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        buildInterface();
+        setStatus("آماده؛ برای شروع، ارسال یا دریافت را انتخاب کنید.");
+    }
+
+    private void buildInterface() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BG);
+
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(18), dp(18), dp(18), dp(28));
+        page.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        scroll.addView(page, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView brand = text("ShareNow", 31, WHITE, true);
+        brand.setGravity(Gravity.CENTER);
+        page.addView(brand, matchWrap());
+
+        TextView subtitle = text("انتقال سریع، مستقیم و امن بین دو گوشی", 14, MUTED, false);
+        subtitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams subtitleParams = matchWrap();
+        subtitleParams.bottomMargin = dp(18);
+        page.addView(subtitle, subtitleParams);
+
+        LinearLayout receiveCard = card(page);
+        addSectionTitle(receiveCard, "دریافت فایل", "گوشی شما مقصد انتقال می‌شود");
+        hotspotButton = button("ساخت شبکهٔ آفلاین و شروع دریافت", true);
+        receiveCard.addView(hotspotButton, matchWrap());
+        hotspotButton.setOnClickListener(v -> requestWifiPermissionAndStartHotspot());
+
+        sameWifiButton = button("استفاده از Wi-Fi فعلی", false);
+        LinearLayout.LayoutParams sameParams = matchWrap();
+        sameParams.topMargin = dp(8);
+        receiveCard.addView(sameWifiButton, sameParams);
+        sameWifiButton.setOnClickListener(v -> startReceiveOnCurrentWifi());
+
+        LinearLayout receiverTools = new LinearLayout(this);
+        receiverTools.setOrientation(LinearLayout.HORIZONTAL);
+        receiverTools.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams toolsParams = matchWrap();
+        toolsParams.topMargin = dp(8);
+        receiveCard.addView(receiverTools, toolsParams);
+
+        Button wifiSettings = button("تنظیمات Wi-Fi", false);
+        receiverTools.addView(wifiSettings, new LinearLayout.LayoutParams(0, dp(46), 1));
+        wifiSettings.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+            } catch (Exception e) {
+                showToast("تنظیمات Wi-Fi در این گوشی در دسترس نیست.");
+            }
+        });
+
+        stopButton = button("توقف دریافت", false);
+        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(0, dp(46), 1);
+        stopParams.leftMargin = dp(8);
+        receiverTools.addView(stopButton, stopParams);
+        stopButton.setOnClickListener(v -> stopReceiveSession());
+
+        receiverInfoView = text("هنوز حالت دریافت فعال نشده است.", 13, MUTED, false);
+        receiverInfoView.setPadding(0, dp(12), 0, 0);
+        receiveCard.addView(receiverInfoView, matchWrap());
+
+        LinearLayout sendCard = card(page);
+        LinearLayout.LayoutParams sendCardParams = matchWrap();
+        sendCardParams.topMargin = dp(14);
+        sendCard.setLayoutParams(sendCardParams);
+        addSectionTitle(sendCard, "ارسال فایل", "هر نوع فایل؛ انتخاب تکی یا چندتایی");
+
+        Button chooseButton = button("انتخاب عکس، فیلم، سند و فایل‌ها", true);
+        sendCard.addView(chooseButton, matchWrap());
+        chooseButton.setOnClickListener(v -> openFilePicker());
+
+        selectedFilesView = text("هنوز فایلی انتخاب نشده است.", 13, MUTED, false);
+        LinearLayout.LayoutParams pickedParams = matchWrap();
+        pickedParams.topMargin = dp(8);
+        pickedParams.bottomMargin = dp(12);
+        sendCard.addView(selectedFilesView, pickedParams);
+
+        ipInput = editText("IP گوشی دریافت‌کننده (مثلاً 192.168.43.1)");
+        sendCard.addView(ipInput, matchWrap());
+
+        pinInput = editText("کد امنیتی ۸ رقمی نمایش‌داده‌شده در گوشی مقصد");
+        LinearLayout.LayoutParams pinParams = matchWrap();
+        pinParams.topMargin = dp(8);
+        sendCard.addView(pinInput, pinParams);
+        pinInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        pinInput.setGravity(Gravity.CENTER);
+
+        discoverButton = button("پیدا کردن خودکار گوشی‌های نزدیک", false);
+        LinearLayout.LayoutParams discoverParams = matchWrap();
+        discoverParams.topMargin = dp(8);
+        sendCard.addView(discoverButton, discoverParams);
+        discoverButton.setOnClickListener(v -> startDiscovery());
+
+        peerList = new LinearLayout(this);
+        peerList.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams peersParams = matchWrap();
+        peersParams.topMargin = dp(6);
+        sendCard.addView(peerList, peersParams);
+
+        Button sendButton = button("ارسال امن فایل‌ها", true);
+        LinearLayout.LayoutParams sendParams = matchWrap();
+        sendParams.topMargin = dp(12);
+        sendCard.addView(sendButton, sendParams);
+        sendButton.setOnClickListener(v -> sendSelectedFiles());
+
+        LinearLayout statusCard = card(page);
+        LinearLayout.LayoutParams statusParams = matchWrap();
+        statusParams.topMargin = dp(14);
+        statusCard.setLayoutParams(statusParams);
+        addSectionTitle(statusCard, "وضعیت انتقال", "پیشرفت و نتیجهٔ عملیات");
+        statusView = text("آماده", 14, WHITE, false);
+        statusCard.addView(statusView, matchWrap());
+
+        progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progressBar.setMax(100);
+        progressBar.setProgress(0);
+        LinearLayout.LayoutParams progressParams = matchWrap();
+        progressParams.topMargin = dp(10);
+        statusCard.addView(progressBar, progressParams);
+
+        progressText = text("۰٪", 12, MUTED, false);
+        progressText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams progressTextParams = matchWrap();
+        progressTextParams.topMargin = dp(4);
+        statusCard.addView(progressText, progressTextParams);
+
+        TextView footnote = text(
+                "نکته: برای انتقال آفلاین، گوشی فرستنده باید به شبکهٔ Wi-Fi ساخته‌شده توسط گوشی مقصد متصل شود. هر دو گوشی باید ShareNow داشته باشند.",
+                12, MUTED, false);
+        footnote.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams footParams = matchWrap();
+        footParams.topMargin = dp(18);
+        page.addView(footnote, footParams);
+
+        setContentView(scroll);
+    }
+
+    private LinearLayout card(LinearLayout parent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), dp(16), dp(16), dp(16));
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(CARD);
+        background.setCornerRadius(dp(18));
+        box.setBackground(background);
+        parent.addView(box, matchWrap());
+        return box;
+    }
+
+    private void addSectionTitle(LinearLayout parent, String title, String description) {
+        TextView heading = text(title, 19, WHITE, true);
+        parent.addView(heading, matchWrap());
+        TextView detail = text(description, 12, MUTED, false);
+        LinearLayout.LayoutParams detailParams = matchWrap();
+        detailParams.topMargin = dp(3);
+        detailParams.bottomMargin = dp(12);
+        parent.addView(detail, detailParams);
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setGravity(Gravity.CENTER_VERTICAL);
+        view.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);
+        if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        return view;
+    }
+
+    private Button button(String label, boolean primary) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextSize(14);
+        button.setAllCaps(false);
+        button.setTextColor(primary ? BG : WHITE);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(primary ? TEAL : Color.rgb(37, 68, 88));
+        shape.setCornerRadius(dp(13));
+        button.setBackground(shape);
+        button.setMinHeight(dp(48));
+        button.setPadding(dp(12), dp(8), dp(12), dp(8));
+        return button;
+    }
+
+    private EditText editText(String hint) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setTextSize(14);
+        input.setTextColor(WHITE);
+        input.setHintTextColor(MUTED);
+        input.setHint(hint);
+        input.setPadding(dp(12), dp(8), dp(12), dp(8));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.rgb(8, 33, 51));
+        shape.setCornerRadius(dp(11));
+        shape.setStroke(dp(1), Color.rgb(48, 83, 105));
+        input.setBackground(shape);
+        return input;
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void openFilePicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, PICK_FILES_REQUEST);
+        } catch (Exception e) {
+            showToast("انتخاب‌گر فایل در این گوشی در دسترس نیست.");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_FILES_REQUEST || resultCode != RESULT_OK || data == null) return;
+
+        pickedFiles.clear();
+        try {
+            if (data.getClipData() != null) {
+                for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                    Uri uri = data.getClipData().getItemAt(i).getUri();
+                    addPickedUri(uri, data.getFlags());
+                }
+            } else if (data.getData() != null) {
+                addPickedUri(data.getData(), data.getFlags());
+            }
+        } catch (Exception e) {
+            showToast("خواندن فهرست فایل‌ها ناموفق بود: " + safeMessage(e));
+        }
+
+        long total = 0;
+        for (PickedFile file : pickedFiles) total += file.size;
+        if (pickedFiles.isEmpty()) {
+            selectedFilesView.setText("هیچ فایلی انتخاب نشد.");
+        } else {
+            selectedFilesView.setText(pickedFiles.size() + " فایل انتخاب شد • مجموع " + formatBytes(total));
+        }
+    }
+
+    private void addPickedUri(Uri uri, int flags) throws IOException {
+        try {
+            getContentResolver().takePersistableUriPermission(uri,
+                    flags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+        } catch (Exception ignored) {
+            // Some document providers do not offer persistable permissions.
+        }
+
+        String name = "file";
+        long size = -1;
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (nameIndex >= 0) name = cursor.getString(nameIndex);
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex);
+            }
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+
+        if (size < 0) {
+            size = measureUri(uri);
+        }
+        pickedFiles.add(new PickedFile(uri, name == null ? "file" : name, size));
+    }
+
+    private long measureUri(Uri uri) throws IOException {
+        long total = 0;
+        byte[] buffer = new byte[BUFFER_SIZE];
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IOException("Cannot open selected file");
+            int count;
+            while ((count = input.read(buffer)) != -1) total += count;
+        }
+        return total;
+    }
+
+    private void requestWifiPermissionAndStartHotspot() {
+        String permission = Build.VERSION.SDK_INT >= 33
+                ? Manifest.permission.NEARBY_WIFI_DEVICES
+                : Manifest.permission.ACCESS_FINE_LOCATION;
+
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{permission}, WIFI_PERMISSION_REQUEST);
+        } else {
+            startLocalOnlyHotspot();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == WIFI_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startLocalOnlyHotspot();
+            } else {
+                setStatus("مجوز Wi-Fi نزدیک داده نشد. می‌توانید از Wi-Fi فعلی استفاده کنید.");
+            }
+        }
+    }
+
+    private void startLocalOnlyHotspot() {
+        if (Build.VERSION.SDK_INT < 26) {
+            setStatus("این نسخهٔ اندروید از ساخت شبکهٔ محلی خودکار پشتیبانی نمی‌کند؛ از Wi-Fi فعلی استفاده کنید.");
+            return;
+        }
+        if (hotspotReservation != null) {
+            setStatus("شبکهٔ آفلاین از قبل فعال است.");
+            return;
+        }
+
+        setStatus("در حال ساخت شبکهٔ Wi-Fi بدون اینترنت...");
+        try {
+            wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
+                @Override
+                public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
+                    hotspotReservation = reservation;
+                    String ssid = "ShareNow";
+                    String password = "در تنظیمات Wi-Fi گوشی بررسی کنید";
+                    try {
+                        if (Build.VERSION.SDK_INT >= 30) {
+                            android.net.wifi.SoftApConfiguration config = reservation.getSoftApConfiguration();
+                            if (config != null) {
+                                if (config.getSsid() != null) ssid = config.getSsid().toString();
+                                if (config.getPassphrase() != null) password = config.getPassphrase();
+                            }
+                        } else {
+                            WifiConfiguration config = reservation.getWifiConfiguration();
+                            if (config != null) {
+                                if (config.SSID != null) ssid = config.SSID.replace("\"", "");
+                                if (config.preSharedKey != null) password = config.preSharedKey.replace("\"", "");
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // Keep generic fallback values if the platform hides hotspot details.
+                    }
+
+                    final String finalSsid = ssid;
+                    final String finalPassword = password;
+                    startReceiveTransport();
+                    mainHandler.postDelayed(() -> {
+                        String ip = getLocalIpAddress();
+                        receiverInfoView.setText("شبکه: " + finalSsid
+                                + "\nرمز Wi-Fi: " + finalPassword
+                                + "\nکد امنیتی انتقال: " + sessionPin
+                                + "\nIP این گوشی: " + ip
+                                + "\nگوشی دوم را به این Wi-Fi وصل کنید؛ سپس در ShareNow گزینهٔ پیدا کردن گوشی را بزنید.");
+                        setStatus("شبکهٔ آفلاین آماده است؛ منتظر گوشی فرستنده هستیم.");
+                    }, 700);
+                }
+
+                @Override
+                public void onStopped() {
+                    hotspotReservation = null;
+                    mainHandler.post(() -> setStatus("شبکهٔ آفلاین متوقف شد."));
+                }
+
+                @Override
+                public void onFailed(int reason) {
+                    mainHandler.post(() -> {
+                        setStatus("ساخت Hotspot ناموفق بود. از گزینهٔ Wi-Fi فعلی استفاده کنید.");
+                        showToast("Hotspot در این لحظه در دسترس نیست؛ شاید نقطهٔ اتصال گوشی روشن باشد.");
+                    });
+                }
+            }, mainHandler);
+        } catch (SecurityException e) {
+            setStatus("مجوز ساخت شبکه داده نشده است. از تنظیمات Wi-Fi فعلی استفاده کنید.");
+        } catch (Exception e) {
+            setStatus("ساخت شبکه ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void startReceiveOnCurrentWifi() {
+        if (!isWifiPermissionGranted()) {
+            requestWifiPermissionAndStartHotspot();
+            return;
+        }
+        startReceiveTransport();
+        receiverInfoView.setText("کد امنیتی انتقال: " + sessionPin
+                + "\nIP این گوشی: " + getLocalIpAddress()
+                + "\nهر دو گوشی باید به یک شبکهٔ Wi-Fi متصل باشند.");
+        setStatus("حالت دریافت روی Wi-Fi فعلی فعال شد.");
+    }
+
+    private boolean isWifiPermissionGranted() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED;
+        }
+        return Build.VERSION.SDK_INT < 23
+                || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void startReceiveTransport() {
+        if (receiving) return;
+        sessionPin = String.format(Locale.US, "%08d", secureRandom.nextInt(100_000_000));
+        try {
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(TCP_PORT));
+            receiving = true;
+            startBroadcaster();
+            serverThread = new Thread(this::acceptConnections, "ShareNow-server");
+            serverThread.start();
+            setStatus("سرور انتقال آماده است؛ کد امنیتی را فقط به فرستنده بدهید.");
+        } catch (IOException e) {
+            receiving = false;
+            setStatus("باز کردن درگاه انتقال ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void acceptConnections() {
+        while (receiving) {
+            try {
+                ServerSocket currentServer = serverSocket;
+                if (currentServer == null) return;
+                Socket client = currentServer.accept();
+                client.setSoTimeout(120_000);
+                handleClient(client);
+            } catch (SocketException e) {
+                if (receiving) publishStatus("ارتباط شبکه قطع شد: " + safeMessage(e));
+                return;
+            } catch (Exception e) {
+                publishStatus("انتقال دریافت نشد: " + safeMessage(e));
+            }
+        }
+    }
+
+    private void handleClient(Socket client) throws Exception {
+        acquireTransferWakeLock();
+        FileTarget currentTarget = null;
+        try (Socket socket = client;
+             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE));
+             DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE))) {
+
+            String suppliedPin = input.readUTF();
+            if (!sessionPin.equals(suppliedPin)) {
+                output.writeBoolean(false);
+                output.flush();
+                publishStatus("یک اتصال با کد اشتباه رد شد.");
+                return;
+            }
+
+            output.writeBoolean(true);
+            byte[] salt = new byte[16];
+            secureRandom.nextBytes(salt);
+            output.write(salt);
+            output.flush();
+            SecretKey key = deriveKey(suppliedPin, salt);
+
+            int fileCount = input.readInt();
+            if (fileCount < 1 || fileCount > 500) throw new IOException("Invalid file count");
+            long totalBytes = 0;
+            for (int i = 0; i < fileCount; i++) {
+                String originalName = input.readUTF();
+                long plainSize = input.readLong();
+                if (plainSize < 0 || plainSize > MAX_FILE_SIZE) throw new IOException("File size is not supported");
+                byte[] nonce = new byte[12];
+                input.readFully(nonce);
+
+                currentTarget = createFileTarget(originalName);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+                long encryptedRemaining = plainSize + 16L;
+                long written = 0;
+                byte[] buffer = new byte[BUFFER_SIZE];
+                while (encryptedRemaining > 0) {
+                    int request = (int) Math.min((long) buffer.length, encryptedRemaining);
+                    int read = input.read(buffer, 0, request);
+                    if (read < 0) throw new IOException("Connection ended before file completed");
+                    encryptedRemaining -= read;
+
+                    byte[] plain = cipher.update(buffer, 0, read);
+                    if (plain != null && plain.length > 0) {
+                        currentTarget.output.write(plain);
+                        digest.update(plain);
+                        written += plain.length;
+                    }
+                    final long fileWritten = written;
+                    final int fileIndex = i;
+                    publishProgress("دریافت: " + originalName,
+                            fileCount, fileIndex, totalBytes + fileWritten, plainSize);
+                }
+
+                byte[] finalPlain = cipher.doFinal();
+                if (finalPlain != null && finalPlain.length > 0) {
+                    currentTarget.output.write(finalPlain);
+                    digest.update(finalPlain);
+                    written += finalPlain.length;
+                }
+                byte[] expectedDigest = new byte[32];
+                input.readFully(expectedDigest);
+                boolean valid = written == plainSize && MessageDigest.isEqual(digest.digest(), expectedDigest);
+
+                if (valid) {
+                    currentTarget.finish();
+                    currentTarget = null;
+                    totalBytes += plainSize;
+                    output.writeBoolean(true);
+                    output.flush();
+                    publishStatus("دریافت شد: " + originalName + " • " + formatBytes(plainSize));
+                } else {
+                    currentTarget.abort();
+                    currentTarget = null;
+                    output.writeBoolean(false);
+                    output.flush();
+                    throw new IOException("Integrity check failed for " + originalName);
+                }
+            }
+            publishProgress("همهٔ فایل‌ها با موفقیت دریافت شدند.", 1, 1, 1, 1);
+            publishStatus("انتقال کامل شد؛ فایل‌ها در Downloads/ShareNow ذخیره شدند.");
+        } finally {
+            if (currentTarget != null) currentTarget.abort();
+            releaseTransferWakeLock();
+        }
+    }
+
+    private FileTarget createFileTarget(String suppliedName) throws IOException {
+        String name = safeFileName(suppliedName);
+        if (Build.VERSION.SDK_INT >= 29) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+            values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType(name));
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/ShareNow");
+            values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+            Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new IOException("Cannot create destination file");
+            OutputStream output = getContentResolver().openOutputStream(uri, "w");
+            if (output == null) {
+                getContentResolver().delete(uri, null, null);
+                throw new IOException("Cannot open destination file");
+            }
+            return new FileTarget(output, uri, null);
+        }
+
+        File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (base == null) throw new IOException("Download folder is not available");
+        File folder = new File(base, "ShareNow");
+        if (!folder.exists() && !folder.mkdirs()) throw new IOException("Cannot create download folder");
+        File file = uniqueFile(folder, name);
+        return new FileTarget(new FileOutputStream(file), null, file);
+    }
+
+    private File uniqueFile(File folder, String name) {
+        File candidate = new File(folder, name);
+        if (!candidate.exists()) return candidate;
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String extension = dot > 0 ? name.substring(dot) : "";
+        int index = 1;
+        while (candidate.exists()) {
+            candidate = new File(folder, stem + " (" + index++ + ")" + extension);
+        }
+        return candidate;
+    }
+
+    private String mimeType(String name) {
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0 && dot < name.length() - 1) {
+            String type = android.webkit.MimeTypeMap.getSingleton()
+                    .getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
+            if (type != null) return type;
+        }
+        return "application/octet-stream";
+    }
+
+    private String safeFileName(String name) {
+        if (name == null || name.trim().isEmpty()) return "received_file";
+        String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        if (safe.length() > 180) safe = safe.substring(0, 180);
+        if (safe.equals(".") || safe.equals("..")) return "received_file";
+        return safe;
+    }
+
+    private void sendSelectedFiles() {
+        if (pickedFiles.isEmpty()) {
+            showToast("ابتدا فایل یا فایل‌هایی را انتخاب کنید.");
+            return;
+        }
+        String ip = ipInput.getText().toString().trim();
+        String pin = pinInput.getText().toString().trim();
+        if (ip.isEmpty() || pin.length() != 8) {
+            showToast("IP مقصد و کد امنیتی ۸ رقمی را وارد کنید.");
+            return;
+        }
+        final List<PickedFile> files = new ArrayList<>(pickedFiles);
+        setStatus("در حال اتصال امن به گوشی مقصد...");
+        progressBar.setProgress(0);
+        transferExecutor.execute(() -> transferFiles(ip, pin, files));
+    }
+
+    private void transferFiles(String ip, String pin, List<PickedFile> files) {
+        acquireTransferWakeLock();
+        long totalBytes = 0;
+        for (PickedFile file : files) totalBytes += file.size;
+        long completedBytes = 0;
+
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(ip, TCP_PORT), 15_000);
+            socket.setSoTimeout(120_000);
+            DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE));
+            DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE));
+
+            output.writeUTF(pin);
+            output.flush();
+            if (!input.readBoolean()) throw new IOException("کد امنیتی اشتباه است یا نشست مقصد منقضی شده است.");
+
+            byte[] salt = new byte[16];
+            input.readFully(salt);
+            SecretKey key = deriveKey(pin, salt);
+            output.writeInt(files.size());
+            output.flush();
+
+            for (int i = 0; i < files.size(); i++) {
+                PickedFile file = files.get(i);
+                if (file.size < 0 || file.size > MAX_FILE_SIZE) {
+                    throw new IOException("حجم این فایل پشتیبانی نمی‌شود: " + file.name);
+                }
+
+                byte[] nonce = new byte[12];
+                secureRandom.nextBytes(nonce);
+                output.writeUTF(safeFileName(file.name));
+                output.writeLong(file.size);
+                output.write(nonce);
+                output.flush();
+
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                long sentForFile = 0;
+
+                try (InputStream source = getContentResolver().openInputStream(file.uri)) {
+                    if (source == null) throw new IOException("فایل قابل خواندن نیست: " + file.name);
+                    byte[] buffer = new byte[BUFFER_SIZE];
+                    int read;
+                    while ((read = source.read(buffer)) != -1) {
+                        digest.update(buffer, 0, read);
+                        byte[] encrypted = cipher.update(buffer, 0, read);
+                        if (encrypted != null && encrypted.length > 0) output.write(encrypted);
+                        sentForFile += read;
+                        publishProgress("ارسال: " + file.name, files.size(), i,
+                                completedBytes + sentForFile, totalBytes);
+                    }
+                }
+
+                if (sentForFile != file.size) {
+                    throw new IOException("اندازهٔ فایل هنگام انتقال تغییر کرد: " + file.name);
+                }
+                byte[] finalEncrypted = cipher.doFinal();
+                if (finalEncrypted != null && finalEncrypted.length > 0) output.write(finalEncrypted);
+                output.write(digest.digest());
+                output.flush();
+
+                if (!input.readBoolean()) throw new IOException("تأیید سلامت فایل از گوشی مقصد دریافت نشد.");
+                completedBytes += file.size;
+            }
+
+            publishProgress("انتقال همهٔ فایل‌ها کامل شد.", files.size(), files.size(), totalBytes, totalBytes);
+            publishStatus("ارسال موفق بود؛ " + files.size() + " فایل به گوشی مقصد رسید.");
+            mainHandler.post(() -> showToast("انتقال با موفقیت انجام شد."));
+        } catch (Exception e) {
+            publishStatus("ارسال ناموفق بود: " + safeMessage(e));
+        } finally {
+            releaseTransferWakeLock();
+        }
+    }
+
+    private SecretKey deriveKey(String pin, byte[] salt) throws Exception {
+        PBEKeySpec spec = new PBEKeySpec(pin.toCharArray(), salt, 150_000, 256);
+        try {
+            byte[] raw = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec).getEncoded();
+            return new SecretKeySpec(raw, "AES");
+        } finally {
+            spec.clearPassword();
+        }
+    }
+
+    private void startDiscovery() {
+        if (discoveryRunning) {
+            showToast("جست‌وجو از قبل فعال است.");
+            return;
+        }
+        discoveredPeers.clear();
+        peerList.removeAllViews();
+        discoveryRunning = true;
+        acquireMulticastLock();
+
+        discoveryThread = new Thread(() -> {
+            DatagramSocket socket = null;
+            try {
+                socket = new DatagramSocket(null);
+                socket.setReuseAddress(true);
+                socket.bind(new InetSocketAddress(DISCOVERY_PORT));
+                socket.setSoTimeout(1200);
+                byte[] buffer = new byte[512];
+                while (discoveryRunning) {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    try {
+                        socket.receive(packet);
+                        String message = new String(packet.getData(), packet.getOffset(),
+                                packet.getLength(), java.nio.charset.StandardCharsets.UTF_8);
+                        if (message.startsWith("SHARENOW|1|")) {
+                            String ip = packet.getAddress().getHostAddress();
+                            if (!isOwnAddress(ip)) {
+                                String deviceName = message.substring("SHARENOW|1|".length()).trim();
+                                addDiscoveredPeer(ip, deviceName.isEmpty() ? "گوشی ShareNow" : deviceName);
+                            }
+                        }
+                    } catch (java.net.SocketTimeoutException ignored) {
+                        // Keep listening until the user stops discovery.
+                    }
+                }
+            } catch (Exception e) {
+                publishStatus("جست‌وجوی دستگاه‌ها ناموفق بود: " + safeMessage(e));
+            } finally {
+                if (socket != null) socket.close();
+                releaseMulticastLock();
+            }
+        }, "ShareNow-discovery");
+        discoveryThread.start();
+        setStatus("در حال جست‌وجوی گوشی‌های ShareNow روی شبکهٔ محلی...");
+    }
+
+    private void addDiscoveredPeer(String ip, String deviceName) {
+        mainHandler.post(() -> {
+            if (discoveredPeers.containsKey(ip)) return;
+            discoveredPeers.put(ip, deviceName);
+            TextView peer = text("📱  " + deviceName + "    " + ip + "    • انتخاب", 13, WHITE, false);
+            peer.setPadding(dp(10), dp(10), dp(10), dp(10));
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(Color.rgb(8, 33, 51));
+            bg.setCornerRadius(dp(9));
+            peer.setBackground(bg);
+            LinearLayout.LayoutParams params = matchWrap();
+            params.topMargin = dp(5);
+            peerList.addView(peer, params);
+            peer.setOnClickListener(v -> {
+                ipInput.setText(ip);
+                setStatus("گوشی مقصد انتخاب شد: " + ip + "؛ کد امنیتی را وارد کنید.");
+            });
+        });
+    }
+
+    private boolean isOwnAddress(String address) {
+        for (String ip : getLocalIpAddresses()) {
+            if (ip.equals(address)) return true;
+        }
+        return false;
+    }
+
+    private void startBroadcaster() {
+        if (broadcasterRunning) return;
+        broadcasterRunning = true;
+        broadcasterThread = new Thread(() -> {
+            while (broadcasterRunning) {
+                String beacon = "SHARENOW|1|" + Build.MODEL.replace("|", " ");
+                byte[] bytes = beacon.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    socket.setBroadcast(true);
+                    Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+                    while (interfaces != null && interfaces.hasMoreElements()) {
+                        NetworkInterface network = interfaces.nextElement();
+                        try {
+                            if (!network.isUp() || network.isLoopback()) continue;
+                            for (java.net.InterfaceAddress address : network.getInterfaceAddresses()) {
+                                InetAddress broadcast = address.getBroadcast();
+                                if (broadcast != null) {
+                                    DatagramPacket packet = new DatagramPacket(
+                                            bytes, bytes.length, broadcast, DISCOVERY_PORT);
+                                    socket.send(packet);
+                                }
+                            }
+                        } catch (Exception ignored) {
+                            // Skip interfaces that do not support broadcast.
+                        }
+                    }
+                } catch (Exception e) {
+                    publishStatus("اعلان حضور روی شبکه ناموفق بود: " + safeMessage(e));
+                }
+                try {
+                    Thread.sleep(900);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }, "ShareNow-beacon");
+        broadcasterThread.start();
+    }
+
+    private void stopDiscovery() {
+        discoveryRunning = false;
+        if (discoveryThread != null) discoveryThread.interrupt();
+        releaseMulticastLock();
+    }
+
+    private void stopReceiveSession() {
+        receiving = false;
+        broadcasterRunning = false;
+        if (broadcasterThread != null) broadcasterThread.interrupt();
+        if (serverSocket != null) {
+            try {
+                serverSocket.close();
+            } catch (IOException ignored) {
+            }
+            serverSocket = null;
+        }
+        if (hotspotReservation != null) {
+            try {
+                hotspotReservation.close();
+            } catch (Exception ignored) {
+            }
+            hotspotReservation = null;
+        }
+        sessionPin = "";
+        receiverInfoView.setText("حالت دریافت متوقف شده است.");
+        setStatus("دریافت متوقف شد.");
+    }
+
+    private List<String> getLocalIpAddresses() {
+        List<String> addresses = new ArrayList<>();
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                NetworkInterface network = interfaces.nextElement();
+                try {
+                    if (!network.isUp() || network.isLoopback()) continue;
+                    for (InetAddress address : Collections.list(network.getInetAddresses())) {
+                        if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                            String ip = address.getHostAddress();
+                            if (!addresses.contains(ip)) addresses.add(ip);
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return addresses;
+    }
+
+    private String getLocalIpAddress() {
+        List<String> addresses = getLocalIpAddresses();
+        for (String ip : addresses) {
+            if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.")) return ip;
+        }
+        return addresses.isEmpty() ? "در انتظار اتصال Wi-Fi" : addresses.get(0);
+    }
+
+    private void acquireMulticastLock() {
+        try {
+            if (wifiManager == null) return;
+            if (multicastLock == null) multicastLock = wifiManager.createMulticastLock("ShareNowDiscovery");
+            if (!multicastLock.isHeld()) multicastLock.acquire();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseMulticastLock() {
+        try {
+            if (multicastLock != null && multicastLock.isHeld()) multicastLock.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private synchronized void acquireTransferWakeLock() {
+        try {
+            if (transferWakeLock == null) {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                transferWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ShareNow:Transfer");
+                transferWakeLock.setReferenceCounted(false);
+            }
+            if (!transferWakeLock.isHeld()) transferWakeLock.acquire(3 * 60 * 60 * 1000L);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private synchronized void releaseTransferWakeLock() {
+        try {
+            if (transferWakeLock != null && transferWakeLock.isHeld()) transferWakeLock.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void publishStatus(String message) {
+        mainHandler.post(() -> setStatus(message));
+    }
+
+    private void publishProgress(String message, int count, int index, long completed, long total) {
+        int percent;
+        if (total <= 0) {
+            percent = 0;
+        } else {
+            percent = (int) Math.max(0, Math.min(100, (completed * 100.0d) / total));
+        }
+        final int value = percent;
+        mainHandler.post(() -> {
+            setStatus(message);
+            progressBar.setProgress(value);
+            progressText.setText(value + "٪");
+        });
+    }
+
+    private void setStatus(String message) {
+        if (statusView != null) statusView.setText(message);
+    }
+
+    private void showToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        double value = bytes;
+        String[] units = {"KB", "MB", "GB", "TB"};
+        int index = -1;
+        do {
+            value /= 1024.0;
+            index++;
+        } while (value >= 1024 && index < units.length - 1);
+        return String.format(Locale.US, "%.1f %s", value, units[index]);
+    }
+
+    private String safeMessage(Throwable error) {
+        String message = error.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? error.getClass().getSimpleName()
+                : message;
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopDiscovery();
+        if (receiving) stopReceiveSession();
+        releaseTransferWakeLock();
+        transferExecutor.shutdownNow();
+        super.onDestroy();
+    }
+
+    private static final class PickedFile {
+        final Uri uri;
+        final String name;
+        final long size;
+
+        PickedFile(Uri uri, String name, long size) {
+            this.uri = uri;
+            this.name = name;
+            this.size = size;
+        }
+    }
+
+    private final class FileTarget {
+        final OutputStream output;
+        final Uri mediaUri;
+        final File file;
+        boolean closed = false;
+
+        FileTarget(OutputStream output, Uri mediaUri, File file) {
+            this.output = output;
+            this.mediaUri = mediaUri;
+            this.file = file;
+        }
+
+        void finish() throws IOException {
+            if (!closed) {
+                output.flush();
+                output.close();
+                closed = true;
+            }
+            if (mediaUri != null) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                getContentResolver().update(mediaUri, values, null, null);
+            }
+        }
+
+        void abort() {
+            try {
+                if (!closed) output.close();
+            } catch (Exception ignored) {
+            }
+            closed = true;
+            try {
+                if (mediaUri != null) getContentResolver().delete(mediaUri, null, null);
+                if (file != null) file.delete();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+}
