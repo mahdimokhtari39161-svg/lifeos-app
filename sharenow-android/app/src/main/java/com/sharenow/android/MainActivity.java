@@ -3,17 +3,26 @@ package com.sharenow.android;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -30,6 +39,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -62,6 +72,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -72,13 +86,20 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+import com.google.zxing.common.BitMatrix;
+
 public class MainActivity extends Activity {
     private static final int PICK_FILES_REQUEST = 4101;
     private static final int WIFI_PERMISSION_REQUEST = 4102;
     private static final int PICK_FOLDER_REQUEST = 4103;
+    private static final int INSTALL_PERMISSION_REQUEST = 4104;
     private static final int TCP_PORT = 47890;
     private static final int DISCOVERY_PORT = 47891;
-    private static final int BUFFER_SIZE = 256 * 1024;
+    private static final int BUFFER_SIZE = 1024 * 1024;
     private static final long MAX_FILE_SIZE = 200L * 1024L * 1024L * 1024L;
 
     private static final int BG = Color.rgb(7, 27, 44);
@@ -92,6 +113,7 @@ public class MainActivity extends Activity {
     private final SecureRandom secureRandom = new SecureRandom();
     private final List<PickedFile> pickedFiles = new ArrayList<>();
     private final Map<String, String> discoveredPeers = new LinkedHashMap<>();
+    private final List<ReceivedBundle> receivedBundles = new ArrayList<>();
 
     private LinearLayout peerList;
     private TextView selectedFilesView;
@@ -106,6 +128,12 @@ public class MainActivity extends Activity {
     private Button sameWifiButton;
     private Button stopButton;
     private Button discoverButton;
+    private Button installReceivedButton;
+    private String hotspotSsid = "";
+    private String hotspotPassword = "";
+    private ReceivedBundle pendingReceivedInstall;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback wifiNetworkCallback;
 
     private WifiManager wifiManager;
     private WifiManager.LocalOnlyHotspotReservation hotspotReservation;
@@ -126,6 +154,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         buildInterface();
         setStatus("آماده؛ برای شروع، ارسال یا دریافت را انتخاب کنید.");
     }
