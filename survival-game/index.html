@@ -183,9 +183,10 @@ function buildCompound(){
 function buildGun(){
  gun=new THREE.Group();camera.add(gun);gun.position.set(.34,-.34,-.68);gun.rotation.set(-.04,-.08,-.02);
  const black=mat(0x1d2527,.35,.72),poly=mat(0x37413c,.52,.28),rubber=mat(0x222623,.88),steel=mat(0x87908b,.28,.82),sleeve=mat(0x46513f),glove=mat(0x30372e);
+ const parts={black,poly,rubber,steel,sleeve,glove};
  // Detailed modern carbine: receiver, handguard, barrel, stock, sights, rail and grip.
  box(gun,0,0,0,.16,.18,.62,poly);box(gun,0,.015,-.37,.12,.13,.43,black);
- box(gun,0,.015,-.55,.078,.08,.31,rubber);cylinder(gun,0,.025,-.79,.025,.025,.43,steel,12).rotation.x=Math.PI/2;
+ box(gun,0,.015,-.55,.078,.08,.31,rubber);const barrel=cylinder(gun,0,.025,-.79,.025,.025,.43,steel,12);barrel.rotation.x=Math.PI/2;
  box(gun,0,-.005,.36,.14,.16,.42,rubber);box(gun,0,.13,-.08,.045,.04,.52,black);
  box(gun,0,.18,-.18,.055,.075,.095,steel);box(gun,0,.15,-.54,.05,.08,.09,black);
  box(gun,0,-.15,.12,.09,.25,.15,black);box(gun,0,-.19,-.07,.09,.22,.15,rubber);
@@ -196,8 +197,33 @@ function buildGun(){
  const rightArm=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.46,10),sleeve);rightArm.position.set(.19,-.2,.23);rightArm.rotation.set(-.65,-.18,.48);gun.add(rightArm);
  sphere(gun,-.22,-.22,-.16,.078,sleeve,10);sphere(gun,.19,-.2,.23,.078,sleeve,10);
  sphere(gun,-.12,-.12,-.36,.095,glove,12);sphere(gun,.12,-.105,-.01,.09,glove,12);
+ // Optional class-specific attachments.
+ const optic=new THREE.Group();optic.position.set(0,.225,-.27);gun.add(optic);box(optic,0,.02,0,.13,.055,.2,black);box(optic,0,.09,-.005,.085,.12,.09,steel);box(optic,0,.09,-.01,.05,.075,.07,mat(0x203b45,.18,.5));
+ const suppressor=cylinder(gun,0,.025,-1.02,.04,.04,.31,black,12);suppressor.rotation.x=Math.PI/2;suppressor.visible=false;
+ const heavyMag=box(gun,0,-.245,-.12,.15,.31,.16,black);heavyMag.visible=false;
+ const medicMark=new THREE.Group();medicMark.position.set(.082,.075,.1);gun.add(medicMark);box(medicMark,0,0,0,.012,.1,.035,mat(0xe5e9e4));box(medicMark,0,0,0,.012,.035,.1,mat(0xc63f3f));medicMark.visible=false;
  flash=new THREE.PointLight(0xffb35a,0,5);flash.position.set(0,.02,-.93);gun.add(flash);
  const flare=new THREE.Mesh(new THREE.ConeGeometry(.075,.28,8),new THREE.MeshBasicMaterial({color:0xffc46e,transparent:true,opacity:.9}));flare.rotation.x=-Math.PI/2;flare.position.set(0,.02,-.98);gun.add(flare);flare.visible=false;gun.userData.flare=flare;
+ gun.userData.classParts={...parts,barrel,optic,suppressor,heavyMag,medicMark,leftArm,rightArm};
+}
+function applyClassWeapon(){
+ if(!gun||!gun.userData.classParts)return;
+ const p=gun.userData.classParts;
+ p.optic.visible=['sniper','commander','operator','elite'].includes(selectedClass.id);
+ p.suppressor.visible=selectedClass.id==='assassin';
+ p.heavyMag.visible=selectedClass.id==='heavy';
+ p.medicMark.visible=selectedClass.id==='medic';
+ p.barrel.scale.y=selectedClass.id==='sniper'?1.65:selectedClass.id==='heavy'?1.22:1;
+ magazine.visible=selectedClass.id!=='heavy';
+ magazine.scale.set(1,1,1);
+ p.heavyMag.scale.set(selectedClass.id==='heavy'?1.22:1,1,1);
+ const armColors={soldier:0x46513f,sniper:0x4c4b43,commander:0x252c32,assassin:0x1c2427,operator:0x344047,medic:0xc5cbc7,heavy:0x414d36,elite:0x172d43};
+ const gloveColors={soldier:0x30372e,sniper:0x292b2a,commander:0x171d22,assassin:0x141a1d,operator:0x202a31,medic:0x454b4a,heavy:0x262f22,elite:0x102339};
+ p.sleeve.color.setHex(armColors[selectedClass.id]||0x46513f);
+ p.glove.color.setHex(gloveColors[selectedClass.id]||0x30372e);
+ p.poly.color.setHex(selectedClass.id==='elite'?0x17405b:selectedClass.id==='medic'?0x555f5d:selectedClass.id==='heavy'?0x4d5339:0x37413c);
+ gun.position.x=selectedClass.id==='sniper'?.38:.34;
+ gun.position.z=selectedClass.id==='sniper'?.78*-1:-.68;
 }
 function makeSoldier(){
  const g=new THREE.Group(),health=2+Math.floor(wave*.25);
@@ -228,7 +254,7 @@ function spawnEnemy(){if(!soldierTemplate&&!soldierFailed)return false;let a=rnd
 function updateHud(){$('hp').textContent=Math.max(0,Math.ceil(hp));$('hpbar').style.width=clamp(hp/selectedClass.hp*100,0,100)+'%';$('wave').textContent=wave.toLocaleString('fa-IR');$('kills').textContent=kills.toLocaleString('fa-IR');$('ammo').textContent=ammo+'/'+reserve}
 function save(){lastSave={wave,kills,hp,best:Math.max(best,kills)};localStorage.setItem('lastShelter3DSave',JSON.stringify(lastSave));localStorage.setItem('lastShelter3DBest',String(Math.max(best,kills)))}
 function load(){try{let d=JSON.parse(localStorage.getItem('lastShelter3DSave'));if(!d)return false;wave=d.wave||1;kills=d.kills||0;hp=d.hp||100;return true}catch(e){return false}}
-function startGame(keep=false){if(!scene)init();enemyList.forEach(e=>scene.remove(e.mesh));corpseList.forEach(e=>scene.remove(e.mesh));enemyList=[];corpseList=[];effects.forEach(e=>scene.remove(e.obj));effects=[];bullets=[];if(!keep){wave=1;kills=0;hp=selectedClass.hp}else{hp=Math.min(selectedClass.hp,hp||selectedClass.hp)}ammo=selectedClass.magazine;reserve=selectedClass.reserve;abilityCooldown=0;sniperBoost=0;stealthTime=0;armorTime=0;scanTime=0;rapidFireTime=0;eliteTime=0;timeSinceHit=99;spawned=0;targetCount=7+wave*2;spawnTimer=1;between=false;paused=false;running=true;$('menu').classList.add('hidden');$('pausePanel').classList.add('hidden');$('wavePanel').classList.add('hidden');$('overPanel').classList.add('hidden');$('controls').classList.remove('hidden');$('tip').classList.remove('hidden');camera.position.set(0,1.72,14);player.set(0,0,14);yaw=Math.PI;pitch=0;camera.rotation.set(0,yaw,0);updateHud();clock.start();if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}
+function startGame(keep=false){if(!scene)init();enemyList.forEach(e=>scene.remove(e.mesh));corpseList.forEach(e=>scene.remove(e.mesh));enemyList=[];corpseList=[];effects.forEach(e=>scene.remove(e.obj));effects=[];bullets=[];if(!keep){wave=1;kills=0;hp=selectedClass.hp}else{hp=Math.min(selectedClass.hp,hp||selectedClass.hp)}ammo=selectedClass.magazine;reserve=selectedClass.reserve;abilityCooldown=0;sniperBoost=0;stealthTime=0;armorTime=0;scanTime=0;rapidFireTime=0;eliteTime=0;timeSinceHit=99;spawned=0;targetCount=7+wave*2;spawnTimer=1;between=false;paused=false;running=true;$('menu').classList.add('hidden');$('pausePanel').classList.add('hidden');$('wavePanel').classList.add('hidden');$('overPanel').classList.add('hidden');$('controls').classList.remove('hidden');$('tip').classList.remove('hidden');camera.position.set(0,1.72,14);player.set(0,0,14);yaw=Math.PI;pitch=0;camera.rotation.set(0,yaw,0);applyClassWeapon();updateHud();clock.start();if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}
 function direction(){return new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).normalize()}
 function fire(){if(!running||paused||between||reloading)return;if(ammo<=0){reload();return}if(fireTimer>0)return;ammo--;fireTimer=currentFireRate();gunKick=.09;flash.intensity=3.5;setTimeout(()=>{if(flash)flash.intensity=0},55);soundShot();let d=direction();raycaster.set(camera.position,d);raycaster.far=85;let meshes=[];enemyList.forEach(e=>e.mesh.traverse(o=>{if(o.isMesh)meshes.push(o)}));let hit=raycaster.intersectObjects(meshes,false)[0];let end=camera.position.clone().addScaledVector(d,55);if(hit){end.copy(hit.point);let enemy=enemyList.find(e=>{let found=false;e.mesh.traverse(o=>{if(o===hit.object)found=true});return found});if(enemy){enemy.hp-=selectedClass.damage*(sniperBoost>0?2.2:1)*(eliteTime>0?1.28:1);enemy.hit=.18;hitMark();if(enemy.hp<=0){kills++;enemy.dead=true;enemy.deathTimer=.72;if(enemy.mixer)enemy.mixer.stopAllAction();enemyList=enemyList.filter(e=>e!==enemy);corpseList.push(enemy);if(enemyList.length===0&&spawned>=targetCount)finishWave()}}}
  let geom=new THREE.BufferGeometry().setFromPoints([camera.position.clone().add(d.clone().multiplyScalar(.4)),end]);let line=new THREE.Line(geom,new THREE.LineBasicMaterial({color:0xffd28a,transparent:true,opacity:.85}));scene.add(line);effects.push({obj:line,t:.065});updateHud()}
