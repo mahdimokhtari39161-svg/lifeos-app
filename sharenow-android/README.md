@@ -22,6 +22,12 @@ ShareNow is an Android-to-Android offline transfer app. It creates a local-only 
 - Android 10+ can request a local Wi-Fi connection after scanning QR. Android 8–9 require the user to join the shown Wi-Fi network manually.
 - Both devices need ShareNow installed. This build targets Android 8.0 (API 26) and newer; iOS requires a separate app.
 
+## Package identity and signing
+
+The 2.1.0 build uses the new package id `com.sharenow.transfer` so it can be installed alongside earlier ShareNow test builds that used `com.sharenow.android.debug`. Earlier copies can be removed after the new app is verified.
+
+The debug signing key is restored from a stable GitHub Actions cache before each build. This keeps future APK updates signed with the same certificate while that cache remains available. Keep workflow builds serialized; do not clear the `sharenow-debug-signing-key-v1` cache or future updates may require reinstalling.
+
 ## Build
 
 GitHub Actions workflow: `.github/workflows/build-sharenow.yml`.
