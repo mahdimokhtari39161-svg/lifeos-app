@@ -16,8 +16,18 @@ android {
         versionName = "2.5.0"
     }
 
+    signingConfigs {
+        create("shareNowDebug") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("shareNowDebug")
             versionNameSuffix = "-debug"
         }
         release {
