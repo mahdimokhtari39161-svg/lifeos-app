@@ -20,6 +20,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
@@ -74,6 +75,7 @@ import javax.crypto.spec.SecretKeySpec;
 public class MainActivity extends Activity {
     private static final int PICK_FILES_REQUEST = 4101;
     private static final int WIFI_PERMISSION_REQUEST = 4102;
+    private static final int PICK_FOLDER_REQUEST = 4103;
     private static final int TCP_PORT = 47890;
     private static final int DISCOVERY_PORT = 47891;
     private static final int BUFFER_SIZE = 256 * 1024;
@@ -198,6 +200,12 @@ public class MainActivity extends Activity {
         Button chooseButton = button("انتخاب عکس، فیلم، سند و فایل‌ها", true);
         sendCard.addView(chooseButton, matchWrap());
         chooseButton.setOnClickListener(v -> openFilePicker());
+
+        Button chooseFolderButton = button("انتخاب یک پوشهٔ کامل", false);
+        LinearLayout.LayoutParams folderButtonParams = matchWrap();
+        folderButtonParams.topMargin = dp(8);
+        sendCard.addView(chooseFolderButton, folderButtonParams);
+        chooseFolderButton.setOnClickListener(v -> openFolderPicker());
 
         selectedFilesView = text("هنوز فایلی انتخاب نشده است.", 13, MUTED, false);
         LinearLayout.LayoutParams pickedParams = matchWrap();
@@ -352,31 +360,91 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void openFolderPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, PICK_FOLDER_REQUEST);
+        } catch (Exception e) {
+            showToast("انتخاب پوشه در این گوشی در دسترس نیست.");
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_FILES_REQUEST || resultCode != RESULT_OK || data == null) return;
+        if (resultCode != RESULT_OK || data == null) return;
 
-        pickedFiles.clear();
-        try {
-            if (data.getClipData() != null) {
-                for (int i = 0; i < data.getClipData().getItemCount(); i++) {
-                    Uri uri = data.getClipData().getItemAt(i).getUri();
-                    addPickedUri(uri, data.getFlags());
+        if (requestCode == PICK_FILES_REQUEST) {
+            pickedFiles.clear();
+            try {
+                if (data.getClipData() != null) {
+                    for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                        Uri uri = data.getClipData().getItemAt(i).getUri();
+                        addPickedUri(uri, data.getFlags());
+                    }
+                } else if (data.getData() != null) {
+                    addPickedUri(data.getData(), data.getFlags());
                 }
-            } else if (data.getData() != null) {
-                addPickedUri(data.getData(), data.getFlags());
+            } catch (Exception e) {
+                showToast("خواندن فهرست فایل‌ها ناموفق بود: " + safeMessage(e));
             }
-        } catch (Exception e) {
-            showToast("خواندن فهرست فایل‌ها ناموفق بود: " + safeMessage(e));
+            updatePickedSummary();
+            return;
         }
 
+        if (requestCode == PICK_FOLDER_REQUEST && data.getData() != null) {
+            pickedFiles.clear();
+            Uri treeUri = data.getData();
+            try {
+                getContentResolver().takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                String rootId = DocumentsContract.getTreeDocumentId(treeUri);
+                collectFolder(treeUri, rootId, "");
+            } catch (Exception e) {
+                showToast("خواندن پوشه ناموفق بود: " + safeMessage(e));
+            }
+            updatePickedSummary();
+        }
+    }
+
+    private void collectFolder(Uri treeUri, String documentId, String relativePath) throws IOException {
+        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
+        String[] projection = {
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+                DocumentsContract.Document.COLUMN_SIZE
+        };
+        Cursor cursor = getContentResolver().query(childrenUri, projection, null, null, null);
+        if (cursor == null) return;
+        try {
+            while (cursor.moveToNext()) {
+                String childId = cursor.getString(0);
+                String name = cursor.getString(1);
+                String mime = cursor.getString(2);
+                long size = cursor.isNull(3) ? -1 : cursor.getLong(3);
+                String safePart = safeFileName(name);
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
+                    collectFolder(treeUri, childId, relativePath + safePart + "/");
+                } else {
+                    Uri childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId);
+                    if (size < 0) size = measureUri(childUri);
+                    pickedFiles.add(new PickedFile(childUri, name == null ? "file" : name, size, relativePath));
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    private void updatePickedSummary() {
         long total = 0;
         for (PickedFile file : pickedFiles) total += file.size;
         if (pickedFiles.isEmpty()) {
             selectedFilesView.setText("هیچ فایلی انتخاب نشد.");
         } else {
-            selectedFilesView.setText(pickedFiles.size() + " فایل انتخاب شد • مجموع " + formatBytes(total));
+            selectedFilesView.setText(pickedFiles.size() + " فایل انتخاب شد • مجموع " + formatBytes(total)
+                    + "\nساختار پوشه‌ها هنگام دریافت حفظ می‌شود.");
         }
     }
 
@@ -403,10 +471,8 @@ public class MainActivity extends Activity {
             if (cursor != null) cursor.close();
         }
 
-        if (size < 0) {
-            size = measureUri(uri);
-        }
-        pickedFiles.add(new PickedFile(uri, name == null ? "file" : name, size));
+        if (size < 0) size = measureUri(uri);
+        pickedFiles.add(new PickedFile(uri, name == null ? "file" : name, size, ""));
     }
 
     private long measureUri(Uri uri) throws IOException {
@@ -592,13 +658,14 @@ public class MainActivity extends Activity {
             if (fileCount < 1 || fileCount > 500) throw new IOException("Invalid file count");
             long totalBytes = 0;
             for (int i = 0; i < fileCount; i++) {
-                String originalName = input.readUTF();
+                String relativeName = input.readUTF();
+                String originalName = relativeName.substring(relativeName.lastIndexOf('/') + 1);
                 long plainSize = input.readLong();
                 if (plainSize < 0 || plainSize > MAX_FILE_SIZE) throw new IOException("File size is not supported");
                 byte[] nonce = new byte[12];
                 input.readFully(nonce);
 
-                currentTarget = createFileTarget(originalName);
+                currentTarget = createFileTarget(relativeName);
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
                 cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -657,14 +724,27 @@ public class MainActivity extends Activity {
         }
     }
 
-    private FileTarget createFileTarget(String suppliedName) throws IOException {
-        String name = safeFileName(suppliedName);
+    private FileTarget createFileTarget(String suppliedPath) throws IOException {
+        String normalized = suppliedPath == null ? "received_file" : suppliedPath.replace('\\', '/');
+        String[] parts = normalized.split("/");
+        List<String> safeParts = new ArrayList<>();
+        for (String part : parts) {
+            if (part == null || part.trim().isEmpty() || part.equals(".") || part.equals("..")) continue;
+            safeParts.add(safeFileName(part));
+        }
+        if (safeParts.isEmpty()) safeParts.add("received_file");
+        String name = safeParts.get(safeParts.size() - 1);
+        String relativeFolders = "";
+        for (int i = 0; i < safeParts.size() - 1; i++) {
+            relativeFolders += safeParts.get(i) + "/";
+        }
+
         if (Build.VERSION.SDK_INT >= 29) {
             ContentValues values = new ContentValues();
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
             values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType(name));
             values.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                    Environment.DIRECTORY_DOWNLOADS + "/ShareNow");
+                    Environment.DIRECTORY_DOWNLOADS + "/ShareNow/" + relativeFolders);
             values.put(MediaStore.MediaColumns.IS_PENDING, 1);
             Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (uri == null) throw new IOException("Cannot create destination file");
@@ -679,6 +759,7 @@ public class MainActivity extends Activity {
         File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
         if (base == null) throw new IOException("Download folder is not available");
         File folder = new File(base, "ShareNow");
+        if (!relativeFolders.isEmpty()) folder = new File(folder, relativeFolders);
         if (!folder.exists() && !folder.mkdirs()) throw new IOException("Cannot create download folder");
         File file = uniqueFile(folder, name);
         return new FileTarget(new FileOutputStream(file), null, file);
@@ -762,7 +843,8 @@ public class MainActivity extends Activity {
 
                 byte[] nonce = new byte[12];
                 secureRandom.nextBytes(nonce);
-                output.writeUTF(safeFileName(file.name));
+                String transferPath = file.relativePath + safeFileName(file.name);
+                output.writeUTF(transferPath);
                 output.writeLong(file.size);
                 output.write(nonce);
                 output.flush();
@@ -1085,11 +1167,13 @@ public class MainActivity extends Activity {
         final Uri uri;
         final String name;
         final long size;
+        final String relativePath;
 
-        PickedFile(Uri uri, String name, long size) {
+        PickedFile(Uri uri, String name, long size, String relativePath) {
             this.uri = uri;
             this.name = name;
             this.size = size;
+            this.relativePath = relativePath == null ? "" : relativePath;
         }
     }
 
