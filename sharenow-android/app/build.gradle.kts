@@ -12,8 +12,8 @@ android {
         applicationId = "com.sharenow.transfer2026"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "2.4.0"
+        versionCode = 8
+        versionName = "2.5.0"
     }
 
     buildTypes {
