@@ -299,6 +299,7 @@ const stick=$('stick'),nub=$('nub');function joySet(e){let r=stick.getBoundingCl
 $('fire').addEventListener('pointerdown',e=>{fireHeld=true;$('fire').setPointerCapture(e.pointerId);fire()});$('fire').addEventListener('pointerup',()=>fireHeld=false);$('fire').addEventListener('pointercancel',()=>fireHeld=false);
 $('aim').addEventListener('pointerdown',()=>{aiming=!aiming;$('aim').style.background=aiming?'#9b8a48':'#17231dcc'});
 $('reload').onclick=reload;$('sprint').addEventListener('pointerdown',()=>sprinting=true);$('sprint').addEventListener('pointerup',()=>sprinting=false);$('sprint').addEventListener('pointercancel',()=>sprinting=false);
+init();
 let rightTouch=null,lastX=0,lastY=0;renderer?.domElement?.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'){if(running&&!paused){renderer.domElement.requestPointerLock?.()}}else if(e.clientX>innerWidth*.42&&e.clientY>80){rightTouch=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)}});renderer?.domElement?.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&document.pointerLockElement===renderer.domElement)look(e.movementX,e.movementY);else if(e.pointerId===rightTouch){look(e.clientX-lastX,e.clientY-lastY);lastX=e.clientX;lastY=e.clientY}});renderer?.domElement?.addEventListener('pointerup',e=>{if(e.pointerId===rightTouch)rightTouch=null});
 renderer.domElement.addEventListener('mousedown',e=>{if(e.button===0&&running&&!paused){fireHeld=true;fire()}});addEventListener('mouseup',e=>{if(e.button===0)fireHeld=false});
 addEventListener('keydown',e=>{if(e.code==='KeyR')reload();if(e.code==='ShiftLeft')sprinting=true;if(e.code==='Space')fireHeld=true;if(e.code==='KeyW')joy.y=-1;if(e.code==='KeyS')joy.y=1;if(e.code==='KeyA')joy.x=-1;if(e.code==='KeyD')joy.x=1});addEventListener('keyup',e=>{if(e.code==='ShiftLeft')sprinting=false;if(e.code==='Space')fireHeld=false;if(['KeyW','KeyS'].includes(e.code))joy.y=0;if(['KeyA','KeyD'].includes(e.code))joy.x=0});addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer?.domElement)look(e.movementX,e.movementY)});
@@ -307,7 +308,7 @@ $('soundBtn').onclick=()=>{soundOn=!soundOn;$('soundBtn').textContent=soundOn?'â
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)pause()});
 loadCharacterAtlas();setCharacter('soldier');
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Offline install support unavailable',err)))}
-init();$('controls').classList.add('hidden');$('tip').classList.add('hidden');
+$('controls').classList.add('hidden');$('tip').classList.add('hidden');
 })();
 </script>
 </body></html>
