@@ -83,7 +83,7 @@ jobs:
           BUILD_TOOLS="${ANDROID_HOME}/build-tools/35.0.0"
           test -f "$APK"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/sharenow-apk-badging.txt
-          grep -F "package: name='com.sharenow.transfer2026' versionCode='9' versionName='2.5.1-debug'" /tmp/sharenow-apk-badging.txt
+          grep -F "package: name='com.sharenow.transfer2026.v251' versionCode='1' versionName='2.5.1-debug'" /tmp/sharenow-apk-badging.txt
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Upload installable APK
