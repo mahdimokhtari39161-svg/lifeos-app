@@ -67,6 +67,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Inspect stable signing key
+        shell: bash
+        run: |
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -E 'Owner:|SHA256:'
+
       - name: Build debug APK
         working-directory: sharenow-android
         run: gradle --no-daemon --stacktrace assembleDebug
@@ -78,13 +83,13 @@ jobs:
           BUILD_TOOLS="${ANDROID_HOME}/build-tools/35.0.0"
           test -f "$APK"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/sharenow-apk-badging.txt
-          grep -F "package: name='com.sharenow.transfer2026' versionCode='8' versionName='2.5.0-debug'" /tmp/sharenow-apk-badging.txt
+          grep -F "package: name='com.sharenow.transfer2026' versionCode='9' versionName='2.5.1-debug'" /tmp/sharenow-apk-badging.txt
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShareNow-2.5.0-Android-APK
+          name: ShareNow-2.5.1-Android-APK
           path: sharenow-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
