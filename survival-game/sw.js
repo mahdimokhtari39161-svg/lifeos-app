@@ -1,4 +1,4 @@
-const CACHE='last-shelter-3d-v21';
+const CACHE='last-shelter-3d-v22';
 const CORE=['./','./index.html','./manifest.webmanifest','./character-atlas.webp.b64'];
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
