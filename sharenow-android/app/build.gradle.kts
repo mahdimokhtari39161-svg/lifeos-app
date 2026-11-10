@@ -36,6 +36,14 @@ android {
 }
 
 
+configurations.configureEach {
+    // The AndroidX Activity Result API and the ZXing scanner bring Kotlin
+    // standard-library variants transitively. Keep the merged Android classpath
+    // free of the legacy split JDK7/JDK8 jars that duplicate classes.
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
+}
+
 dependencies {
     implementation("androidx.activity:activity:1.9.3")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
