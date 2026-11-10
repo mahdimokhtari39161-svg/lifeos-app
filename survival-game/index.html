@@ -136,13 +136,15 @@
     if((e.key==='Enter'||e.key===' ')&&e.target.closest('.classCard'))setSelected(e.target.closest('.classCard').dataset.character);
   });
   window.__applyCharacterSelection=setSelected;
-  const start=$('start');
-  if(start)start.addEventListener('click',()=>{
-    setTimeout(()=>{
-      if(!window.__gameModuleReady){
-        alert('منوی انتخاب سرباز فعال است، اما موتور سه‌بعدی بارگذاری نشده است. اینترنت را روشن کن و صفحه را دوباره باز کن؛ فایل‌های بازی از سرور سه‌بعدی دریافت می‌شوند.');
-      }
-    },500);
+  window.addEventListener('error',event=>{
+    if(window.__gameModuleReady)return;
+    const foot=document.querySelector('#menu .footer');
+    if(foot)foot.textContent='خطای بارگذاری موتور بازی: '+(event.message||'خطای ناشناخته')+' • صفحه را دوباره باز کن.';
+  });
+  window.addEventListener('unhandledrejection',event=>{
+    if(window.__gameModuleReady)return;
+    const foot=document.querySelector('#menu .footer');
+    if(foot)foot.textContent='خطا در دریافت فایل‌های بازی: '+String(event.reason||'اتصال ناموفق');
   });
   setSelected('soldier');
   setTimeout(()=>{
