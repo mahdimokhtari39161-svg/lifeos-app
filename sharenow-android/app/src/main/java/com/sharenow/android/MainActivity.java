@@ -29,6 +29,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
@@ -120,7 +122,12 @@ public class MainActivity extends Activity {
     private TextView receiverInfoView;
     private TextView statusView;
     private TextView progressText;
+    private TextView transferMetricsView;
+    private TextView historyPreviewView;
     private ProgressBar progressBar;
+    private long lastSpeedSampleAt = 0L;
+    private long lastSpeedSampleBytes = 0L;
+    private double currentSpeedBytesPerSecond = 0.0d;
     private EditText ipInput;
     private EditText pinInput;
     private Button receiveButton;
@@ -317,6 +324,23 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams progressTextParams = matchWrap();
         progressTextParams.topMargin = dp(4);
         statusCard.addView(progressText, progressTextParams);
+
+        transferMetricsView = text("سرعت لحظه‌ای: آماده • حجم انتقال: ۰ بایت", 12, MUTED, false);
+        transferMetricsView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams metricsParams = matchWrap();
+        metricsParams.topMargin = dp(7);
+        statusCard.addView(transferMetricsView, metricsParams);
+
+        historyPreviewView = text("", 12, MUTED, false);
+        historyPreviewView.setPadding(0, dp(12), 0, dp(4));
+        statusCard.addView(historyPreviewView, matchWrap());
+
+        Button historyButton = button("مشاهده سوابق انتقال", false);
+        LinearLayout.LayoutParams historyButtonParams = matchWrap();
+        historyButtonParams.topMargin = dp(6);
+        statusCard.addView(historyButton, historyButtonParams);
+        historyButton.setOnClickListener(v -> showTransferHistory());
+        refreshHistoryPreview();
 
         TextView footnote = text(
                 "اتصال QR: گوشی مقصد کد را نمایش می‌دهد و گوشی فرستنده آن را اسکن می‌کند. برنامه‌ها و بازی‌ها به صورت بستهٔ نصب منتقل می‌شوند؛ اطلاعات داخلی بازی‌ها منتقل نمی‌شود.",
