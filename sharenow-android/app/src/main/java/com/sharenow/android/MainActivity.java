@@ -166,6 +166,62 @@ public class MainActivity extends Activity {
         connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         buildInterface();
         setStatus("آماده؛ برای شروع، ارسال یا دریافت را انتخاب کنید.");
+        handleIncomingShare(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingShare(intent);
+    }
+
+    private void handleIncomingShare(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        int before = pickedFiles.size();
+        try {
+            if (Intent.ACTION_SEND.equals(action)) {
+                Uri stream;
+                if (Build.VERSION.SDK_INT >= 33) {
+                    stream = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
+                } else {
+                    //noinspection deprecation
+                    stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                }
+                if (stream != null) {
+                    addPickedUri(stream, intent.getFlags());
+                } else if (intent.getClipData() != null) {
+                    for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
+                        Uri uri = intent.getClipData().getItemAt(i).getUri();
+                        if (uri != null) addPickedUri(uri, intent.getFlags());
+                    }
+                }
+            } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+                ArrayList<Uri> streams;
+                if (Build.VERSION.SDK_INT >= 33) {
+                    streams = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri.class);
+                } else {
+                    //noinspection deprecation
+                    streams = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+                }
+                if (streams != null) {
+                    for (Uri uri : streams) if (uri != null) addPickedUri(uri, intent.getFlags());
+                } else if (intent.getClipData() != null) {
+                    for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
+                        Uri uri = intent.getClipData().getItemAt(i).getUri();
+                        if (uri != null) addPickedUri(uri, intent.getFlags());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            showToast("دریافت فایل از منوی اشتراک‌گذاری ناموفق بود: " + safeMessage(e));
+        }
+        if (pickedFiles.size() > before) {
+            updatePickedSummary();
+            setStatus("فایل‌های اشتراک‌گذاری‌شده آماده‌اند؛ QR یا گوشی مقصد را انتخاب کنید.");
+            showToast((pickedFiles.size() - before) + " فایل به فهرست ارسال اضافه شد.");
+        }
     }
 
     private void buildInterface() {
