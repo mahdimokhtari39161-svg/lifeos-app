@@ -490,7 +490,8 @@ public class MainActivity extends Activity {
                     connectToQrHotspot(ssid, password);
                 }
             } else if (!ssid.isEmpty()) {
-                setStatus("QR خوانده شد. ابتدا به شبکهٔ " + ssid + " متصل شوید، سپس ارسال را بزنید.");
+                setStatus("QR خوانده شد. در Wi-Fi به شبکهٔ " + ssid + " وصل شوید. رمز: " + password
+                        + "\nپس از اتصال، به ShareNow برگردید و ارسال را بزنید.");
                 try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); } catch (Exception ignored) { }
             } else {
                 setStatus("گوشی مقصد شناسایی شد؛ حالا فایل‌ها را انتخاب و ارسال کنید.");
@@ -532,7 +533,8 @@ public class MainActivity extends Activity {
                 }
                 @Override
                 public void onUnavailable() {
-                    mainHandler.post(() -> setStatus("اتصال خودکار Wi-Fi انجام نشد؛ از تنظیمات Wi-Fi دستی وصل شوید."));
+                    mainHandler.post(() -> setStatus("اتصال خودکار Wi-Fi انجام نشد. در تنظیمات به " + ssid
+                            + " وصل شوید. رمز: " + password));
                 }
                 @Override
                 public void onLost(Network network) {
