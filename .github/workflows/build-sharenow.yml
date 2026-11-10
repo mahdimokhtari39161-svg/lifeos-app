@@ -63,10 +63,20 @@ jobs:
         working-directory: sharenow-android
         run: gradle --no-daemon --stacktrace assembleDebug
 
+      - name: Verify APK package, version, and signature
+        shell: bash
+        run: |
+          APK="sharenow-android/app/build/outputs/apk/debug/app-debug.apk"
+          BUILD_TOOLS="${ANDROID_HOME}/build-tools/35.0.0"
+          test -f "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/sharenow-apk-badging.txt
+          grep -F "package: name='com.sharenow.transfer2026' versionCode='6' versionName='2.3.0-debug'" /tmp/sharenow-apk-badging.txt
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShareNow-Android-APK
+          name: ShareNow-2.3.0-Android-APK
           path: sharenow-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
