@@ -1,7 +1,8 @@
 package com.sharenow.android;
 
 import android.Manifest;
-import android.app.Activity;
+import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.ContentValues;
@@ -90,11 +91,11 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
-import com.google.zxing.integration.android.IntentIntegrator;
-import com.google.zxing.integration.android.IntentResult;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 import com.google.zxing.common.BitMatrix;
 
-public class MainActivity extends Activity {
+public class MainActivity extends ComponentActivity {
     private static final int PICK_FILES_REQUEST = 4101;
     private static final int WIFI_PERMISSION_REQUEST = 4102;
     private static final int PICK_FOLDER_REQUEST = 4103;
@@ -110,6 +111,7 @@ public class MainActivity extends Activity {
     private static final int WHITE = Color.WHITE;
     private static final int MUTED = Color.rgb(177, 198, 211);
 
+    private ActivityResultLauncher<ScanOptions> qrScanLauncher;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService transferExecutor = Executors.newSingleThreadExecutor();
     private final SecureRandom secureRandom = new SecureRandom();
@@ -160,6 +162,13 @@ public class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        qrScanLauncher = registerForActivityResult(new ScanContract(), result -> {
+            if (result.getContents() != null) {
+                handleConnectionQr(result.getContents());
+            } else {
+                setStatus("اسکن لغو شد؛ برای اتصال دوباره QR را اسکن کنید.");
+            }
+        });
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -243,8 +252,35 @@ public class MainActivity extends Activity {
         TextView subtitle = text("انتقال سریع، مستقیم و امن بین دو گوشی", 14, MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams subtitleParams = matchWrap();
-        subtitleParams.bottomMargin = dp(18);
+        subtitleParams.bottomMargin = dp(14);
         page.addView(subtitle, subtitleParams);
+
+        LinearLayout quickActions = new LinearLayout(this);
+        quickActions.setOrientation(LinearLayout.HORIZONTAL);
+        quickActions.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams quickParams = matchWrap();
+        quickParams.bottomMargin = dp(16);
+        page.addView(quickActions, quickParams);
+        Button sendHero = button("➤  ارسال فایل", true);
+        sendHero.setTextColor(WHITE);
+        sendHero.setTextSize(18);
+        sendHero.setMinHeight(dp(76));
+        GradientDrawable sendHeroBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(20, 132, 255), Color.rgb(35, 91, 220)});
+        sendHeroBg.setCornerRadius(dp(20));
+        sendHero.setBackground(sendHeroBg);
+        quickActions.addView(sendHero, new LinearLayout.LayoutParams(0, dp(78), 1));
+        Button receiveHero = button("⬇  دریافت فایل", true);
+        receiveHero.setTextColor(WHITE);
+        receiveHero.setTextSize(18);
+        receiveHero.setMinHeight(dp(76));
+        GradientDrawable receiveHeroBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(28, 190, 132), Color.rgb(12, 143, 111)});
+        receiveHeroBg.setCornerRadius(dp(20));
+        receiveHero.setBackground(receiveHeroBg);
+        LinearLayout.LayoutParams receiveHeroParams = new LinearLayout.LayoutParams(0, dp(78), 1);
+        receiveHeroParams.leftMargin = dp(10);
+        quickActions.addView(receiveHero, receiveHeroParams);
 
         LinearLayout receiveCard = card(page);
         addSectionTitle(receiveCard, "دریافت فایل", "گوشی شما مقصد انتقال می‌شود");
@@ -353,6 +389,12 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams peersParams = matchWrap();
         peersParams.topMargin = dp(6);
         sendCard.addView(peerList, peersParams);
+
+        sendHero.setOnClickListener(v -> scroll.smoothScrollTo(0, sendCard.getTop()));
+        receiveHero.setOnClickListener(v -> {
+            scroll.smoothScrollTo(0, receiveCard.getTop());
+            requestWifiPermissionAndStartHotspot();
+        });
 
         Button sendButton = button("ارسال امن فایل‌ها", true);
         LinearLayout.LayoutParams sendParams = matchWrap();
@@ -487,14 +529,20 @@ public class MainActivity extends Activity {
     // QR pairing. The receiver encodes its local IP, port, one-time PIN and hotspot credentials.
     private void startQrScanner() {
         try {
-            IntentIntegrator integrator = new IntentIntegrator(this);
-            integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
-            integrator.setPrompt("کد ShareNow گوشی دریافت‌کننده را اسکن کنید");
-            integrator.setBeepEnabled(false);
-            integrator.setOrientationLocked(true);
-            integrator.initiateScan();
+            if (qrScanLauncher == null) {
+                showToast("اسکنر هنوز آماده نشده است؛ یک بار برنامه را دوباره باز کنید.");
+                return;
+            }
+            ScanOptions options = new ScanOptions();
+            options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+            options.setPrompt("کد QR گوشی دریافت‌کننده را داخل کادر قرار دهید");
+            options.setBeepEnabled(false);
+            options.setOrientationLocked(false);
+            options.setCameraId(0);
+            options.setBarcodeImageEnabled(false);
+            qrScanLauncher.launch(options);
         } catch (Exception e) {
-            showToast("اسکنر QR در دسترس نیست: " + safeMessage(e));
+            showToast("بازکردن دوربین اسکن ناموفق بود: " + safeMessage(e));
         }
     }
 
@@ -881,11 +929,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == IntentIntegrator.REQUEST_CODE) {
-            IntentResult scan = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-            if (scan != null && scan.getContents() != null) handleConnectionQr(scan.getContents());
-            return;
-        }
         if (requestCode == INSTALL_PERMISSION_REQUEST) {
             if (Build.VERSION.SDK_INT >= 26 && getPackageManager().canRequestPackageInstalls()
                     && pendingReceivedInstall != null) {
