@@ -220,6 +220,19 @@ public class MainActivity extends Activity {
         receiverInfoView.setPadding(0, dp(12), 0, 0);
         receiveCard.addView(receiverInfoView, matchWrap());
 
+        Button showQrButton = button("نمایش QR برای اتصال گوشی فرستنده", false);
+        LinearLayout.LayoutParams qrParams = matchWrap();
+        qrParams.topMargin = dp(8);
+        receiveCard.addView(showQrButton, qrParams);
+        showQrButton.setOnClickListener(v -> showConnectionQr());
+
+        installReceivedButton = button("نصب برنامه‌ها و بازی‌های دریافتی", false);
+        LinearLayout.LayoutParams installReceivedParams = matchWrap();
+        installReceivedParams.topMargin = dp(8);
+        receiveCard.addView(installReceivedButton, installReceivedParams);
+        installReceivedButton.setVisibility(View.GONE);
+        installReceivedButton.setOnClickListener(v -> showReceivedBundles());
+
         LinearLayout sendCard = card(page);
         LinearLayout.LayoutParams sendCardParams = matchWrap();
         sendCardParams.topMargin = dp(14);
@@ -236,6 +249,12 @@ public class MainActivity extends Activity {
         sendCard.addView(chooseFolderButton, folderButtonParams);
         chooseFolderButton.setOnClickListener(v -> openFolderPicker());
 
+        Button chooseAppsButton = button("انتخاب برنامه‌ها و بازی‌های نصب‌شده", false);
+        LinearLayout.LayoutParams appsParams = matchWrap();
+        appsParams.topMargin = dp(8);
+        sendCard.addView(chooseAppsButton, appsParams);
+        chooseAppsButton.setOnClickListener(v -> showInstalledAppsDialog());
+
         selectedFilesView = text("هنوز فایلی انتخاب نشده است.", 13, MUTED, false);
         LinearLayout.LayoutParams pickedParams = matchWrap();
         pickedParams.topMargin = dp(8);
@@ -251,6 +270,12 @@ public class MainActivity extends Activity {
         sendCard.addView(pinInput, pinParams);
         pinInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         pinInput.setGravity(Gravity.CENTER);
+
+        Button scanQrButton = button("اسکن QR گوشی دریافت‌کننده", true);
+        LinearLayout.LayoutParams scanParams = matchWrap();
+        scanParams.topMargin = dp(8);
+        sendCard.addView(scanQrButton, scanParams);
+        scanQrButton.setOnClickListener(v -> startQrScanner());
 
         discoverButton = button("پیدا کردن خودکار گوشی‌های نزدیک", false);
         LinearLayout.LayoutParams discoverParams = matchWrap();
@@ -292,7 +317,7 @@ public class MainActivity extends Activity {
         statusCard.addView(progressText, progressTextParams);
 
         TextView footnote = text(
-                "نکته: برای انتقال آفلاین، گوشی فرستنده باید به شبکهٔ Wi-Fi ساخته‌شده توسط گوشی مقصد متصل شود. هر دو گوشی باید ShareNow داشته باشند.",
+                "اتصال QR: گوشی مقصد کد را نمایش می‌دهد و گوشی فرستنده آن را اسکن می‌کند. برنامه‌ها و بازی‌ها به صورت بستهٔ نصب منتقل می‌شوند؛ اطلاعات داخلی بازی‌ها منتقل نمی‌شود.",
                 12, MUTED, false);
         footnote.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams footParams = matchWrap();
@@ -402,6 +427,22 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == IntentIntegrator.REQUEST_CODE) {
+            IntentResult scan = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+            if (scan != null && scan.getContents() != null) handleConnectionQr(scan.getContents());
+            return;
+        }
+        if (requestCode == INSTALL_PERMISSION_REQUEST) {
+            if (Build.VERSION.SDK_INT >= 26 && getPackageManager().canRequestPackageInstalls()
+                    && pendingReceivedInstall != null) {
+                ReceivedBundle bundle = pendingReceivedInstall;
+                pendingReceivedInstall = null;
+                installReceivedBundle(bundle);
+            } else {
+                showToast("مجوز نصب برنامه از منابع ناشناس فعال نشد.");
+            }
+            return;
+        }
         if (resultCode != RESULT_OK || data == null) return;
 
         if (requestCode == PICK_FILES_REQUEST) {
@@ -577,6 +618,8 @@ public class MainActivity extends Activity {
 
                     final String finalSsid = ssid;
                     final String finalPassword = password;
+                    hotspotSsid = finalSsid;
+                    hotspotPassword = finalPassword;
                     startReceiveTransport();
                     mainHandler.postDelayed(() -> {
                         String ip = getLocalIpAddress();
@@ -584,7 +627,7 @@ public class MainActivity extends Activity {
                                 + "\nرمز Wi-Fi: " + finalPassword
                                 + "\nکد امنیتی انتقال: " + sessionPin
                                 + "\nIP این گوشی: " + ip
-                                + "\nگوشی دوم را به این Wi-Fi وصل کنید؛ سپس در ShareNow گزینهٔ پیدا کردن گوشی را بزنید.");
+                                + "\nبرای اتصال سریع، در گوشی فرستنده QR را اسکن کنید.");
                         setStatus("شبکهٔ آفلاین آماده است؛ منتظر گوشی فرستنده هستیم.");
                     }, 700);
                 }
@@ -612,9 +655,11 @@ public class MainActivity extends Activity {
 
     private void startReceiveOnCurrentWifi() {
         startReceiveTransport();
+        hotspotSsid = "";
+        hotspotPassword = "";
         receiverInfoView.setText("کد امنیتی انتقال: " + sessionPin
                 + "\nIP این گوشی: " + getLocalIpAddress()
-                + "\nهر دو گوشی باید به یک شبکهٔ Wi-Fi متصل باشند.");
+                + "\nهر دو گوشی باید به یک شبکهٔ Wi-Fi متصل باشند؛ سپس QR را اسکن کنید.");
         setStatus("حالت دریافت روی Wi-Fi فعلی فعال شد.");
     }
 
@@ -731,7 +776,9 @@ public class MainActivity extends Activity {
                 boolean valid = written == plainSize && MessageDigest.isEqual(digest.digest(), expectedDigest);
 
                 if (valid) {
-                    currentTarget.finish();
+                    FileTarget finishedTarget = currentTarget;
+                    finishedTarget.finish();
+                    registerReceivedBundle(finishedTarget, originalName);
                     currentTarget = null;
                     totalBytes += plainSize;
                     output.writeBoolean(true);
@@ -851,6 +898,8 @@ public class MainActivity extends Activity {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(ip, TCP_PORT), 15_000);
             socket.setSoTimeout(120_000);
+            socket.setSendBufferSize(2 * 1024 * 1024);
+            socket.setReceiveBufferSize(2 * 1024 * 1024);
             DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE));
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE));
 
@@ -1068,6 +1117,8 @@ public class MainActivity extends Activity {
             hotspotReservation = null;
         }
         sessionPin = "";
+        hotspotSsid = "";
+        hotspotPassword = "";
         receiverInfoView.setText("حالت دریافت متوقف شده است.");
         setStatus("دریافت متوقف شد.");
     }
