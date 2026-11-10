@@ -1,4 +1,4 @@
-const CACHE='last-shelter-3d-v6';
-self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(['./','./index.html','./manifest.webmanifest']);await self.skipWaiting()})()));
+const CACHE='last-shelter-3d-v7';
+self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(['./','./index.html','./manifest.webmanifest','./character-atlas.webp.b64']);await self.skipWaiting()})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key.startsWith('last-shelter-')&&key!==CACHE).map(key=>caches.delete(key)));await self.clients.claim()})()));
 self.addEventListener('fetch',event=>{if(event.request.method==='GET'&&new URL(event.request.url).origin===location.origin){event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy))}return response}).catch(()=>caches.match('./index.html'))))}});
