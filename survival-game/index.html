@@ -7,7 +7,7 @@
 <style>
 :root{color-scheme:dark;--gold:#e5bd68;--panel:#101713eF;--line:#6c806e}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Tahoma,Arial,sans-serif;color:#f4f4ed;touch-action:none}#world{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.hud{position:fixed;z-index:5;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;justify-content:space-between;gap:6px;pointer-events:none}.stat{background:#101713cf;border:1px solid #71806d66;border-radius:10px;padding:6px 10px;min-width:62px;text-align:center;backdrop-filter:blur(7px)}.stat small{display:block;color:#bdc7b8;font-size:9px}.stat b{font-size:15px}.healthbar{height:4px;background:#562d2a;margin-top:4px;border-radius:5px;overflow:hidden}.healthbar i{display:block;height:100%;background:#e65e50;width:100%}.ammo{font-size:21px!important;color:var(--gold)}.top{position:fixed;z-index:7;top:70px;right:10px;display:flex;gap:5px}.top button,.ctrl{border:1px solid #d7dfc855;background:#17231dcc;color:#fff;border-radius:12px;font-weight:bold;backdrop-filter:blur(6px)}.top button{padding:8px 10px;font-size:11px}.controls{position:fixed;z-index:6;inset:auto 0 calc(env(safe-area-inset-bottom,0px) + 10px);height:160px;pointer-events:none}.stick{position:absolute;left:20px;bottom:4px;width:124px;height:124px;border:2px solid #e4ead477;border-radius:50%;background:#b6cbb51b;pointer-events:auto;touch-action:none}.nub{position:absolute;width:48px;height:48px;left:36px;top:36px;border-radius:50%;background:#e0e9d77a;border:1px solid #fff9}.fire{position:absolute;right:22px;bottom:15px;width:82px;height:82px;border-radius:50%;background:#9d352de8;border:2px solid #ffb19a;font-size:25px;pointer-events:auto;touch-action:none}.aim{position:absolute;right:116px;bottom:23px;width:58px;height:58px;border-radius:50%;pointer-events:auto}.reload{position:absolute;right:119px;bottom:91px;width:52px;height:45px;border-radius:12px;font-size:12px;pointer-events:auto}.sprint{position:absolute;left:153px;bottom:18px;width:54px;height:48px;border-radius:12px;font-size:11px;pointer-events:auto}.ctrl:active,.top button:active{filter:brightness(1.4);transform:scale(.96)}.crosshair{position:fixed;z-index:4;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none;opacity:.9}.crosshair:before,.crosshair:after{content:"";position:absolute;background:#f3f4db;box-shadow:0 0 3px #000}.crosshair:before{width:2px;height:18px;left:8px}.crosshair:after{height:2px;width:18px;top:8px}.hitmark{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);font-size:27px;color:#ffcf75;opacity:0;pointer-events:none}.hitmark.show{animation:hit .18s}@keyframes hit{0%{opacity:1;transform:translate(-50%,-50%) scale(.7)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}.tip{position:fixed;z-index:4;bottom:calc(env(safe-area-inset-bottom,8px) + 5px);left:50%;transform:translateX(-50%);background:#101713c9;border:1px solid #71806d55;border-radius:20px;padding:6px 11px;color:#d3ddcf;font-size:10px;white-space:nowrap;pointer-events:none}.panel{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:16px;background:#07100bdc;backdrop-filter:blur(10px)}.card{width:min(440px,100%);max-height:90dvh;overflow:auto;background:linear-gradient(155deg,#29392d,#111a15);border:1px solid #72856e;border-radius:22px;padding:22px;box-shadow:0 25px 90px #000b}.logo{text-align:center;font-size:42px}.eyebrow{text-align:center;color:var(--gold);font-size:11px;letter-spacing:2px}.card h1{text-align:center;margin:9px 0;font-size:26px}.card p{color:#c5d0c2;line-height:1.9;text-align:center;font-size:13px}.actions{display:grid;gap:9px;margin-top:17px}.primary,.secondary{font:inherit;border-radius:12px;padding:13px;font-weight:bold;color:#fff;border:1px solid #aab99c55}.primary{background:linear-gradient(135deg,#d4ad5a,#936c31);color:#1a1a13;border:0}.secondary{background:#26382c}.hidden{display:none!important}.objective{color:#eac879;text-align:center;font-size:11px;margin:10px}.footer{text-align:center;color:#829083;font-size:10px;margin-top:12px}.mobileOnly{display:none}@media(pointer:coarse){.mobileOnly{display:block}}@media(min-width:850px){.stick{left:calc(50% - 390px)}.fire{right:calc(50% - 390px)}.aim{right:calc(50% - 286px)}.reload{right:calc(50% - 283px)}.sprint{left:calc(50% - 245px)}}@media(max-height:520px){.controls{height:125px}.stick{width:100px;height:100px}.nub{left:27px;top:27px}.fire{width:68px;height:68px}.aim{bottom:14px}.reload{bottom:75px}}
 
-/* Tactical 8-character roster */
+/* Make roster taps reliable on touch browsers. */\n#menu,.rosterShell,.classGrid,.classCard,.rosterActions,.rosterActions button{pointer-events:auto;touch-action:manipulation}\n.classArt:after{pointer-events:none}\n.classCard{ -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none}\n/* Tactical 8-character roster */
 #menu{overflow-y:auto;align-items:center;padding:12px}
 .rosterShell{width:min(1240px,100%);max-height:96dvh;overflow:auto;padding:16px;border:1px solid #718b9c88;border-radius:20px;background:radial-gradient(ellipse at 50% 0%,#344957 0%,#121c24 56%,#090f14 100%);box-shadow:0 22px 90px #000e}
 .rosterHead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
@@ -90,6 +90,65 @@
 <div class="panel hidden" id="pausePanel"><div class="card"><h1>عملیات متوقف شد</h1><p>وضعیت بازی ذخیره شده است.</p><div class="actions"><button class="primary" id="resume">ادامه عملیات</button><button class="secondary" id="saveExit">ذخیره و خروج</button></div></div></div>
 <div class="panel hidden" id="wavePanel"><div class="card"><div class="logo">🏅</div><h1>خط دفاعی شکسته شد</h1><p id="waveText"></p><div class="actions"><button class="primary" id="nextWave">ورود به موج بعدی</button><button class="secondary" id="saveWave">ذخیره و بازگشت</button></div></div></div>
 <div class="panel hidden" id="overPanel"><div class="card"><div class="logo">⚠️</div><h1>ماموریت ناموفق</h1><p id="finalText"></p><div class="actions"><button class="primary" id="retry">شروع دوباره</button><button class="secondary" id="home">منوی اصلی</button></div></div></div>
+<script>
+/* Always-on roster controller: works even if external 3D modules fail to download. */
+(function(){
+  const data={
+    soldier:{name:'سرباز',english:'SOLDIER',role:'نیروی متعادل',description:'نیروی همه‌فن‌حریف برای خط مقدم؛ مناسب بازیکنی که می‌خواهد با سلاح استاندارد در هر موقعیت بجنگد.',skill:'تدارکات رزمی',skillDescription:'۱۸ واحد سلامتی و ۱۲ فشنگ فوری دریافت می‌کنی و مهمات ذخیره نیز افزایش می‌یابد.',weapon:'کاربین تهاجمی',hp:100,speed:4.6,damage:1,magazine:30},
+    sniper:{name:'تک‌تیرانداز',english:'SNIPER',role:'شکارچی دوربرد',description:'متخصص حذف هدف از فاصله دور؛ سلامتی کمتر دارد اما هر گلوله آسیب بیشتری وارد می‌کند.',skill:'تمرکز مرگبار',skillDescription:'برای چند ثانیه قدرت گلوله‌ها چند برابر می‌شود تا دشمنان سرسخت سریع‌تر از پا درآیند.',weapon:'تفنگ دوربین‌دار',hp:88,speed:4,damage:2.6,magazine:10},
+    commander:{name:'فرمانده',english:'COMMANDER',role:'رهبر میدان',description:'مقاوم و منظم؛ با توانایی فرماندهی برای چند لحظه پیشروی دشمنان را متوقف می‌کند.',skill:'پالس فرماندهی',skillDescription:'رادار تاکتیکی فعال می‌شود و دشمنان اطراف برای چند ثانیه متوقف می‌شوند.',weapon:'کاربین تاکتیکی',hp:128,speed:4.25,damage:1.12,magazine:30},
+    assassin:{name:'آدمکش',english:'ASSASSIN',role:'نفوذگر مخفی',description:'سریع و چابک با زره سبک؛ برای جابه‌جایی سریع و غافلگیرکردن دشمن مناسب است.',skill:'استتار سایه',skillDescription:'برای ۷ ثانیه احتمال اصابت گلوله‌های دشمن به‌شدت کاهش پیدا می‌کند.',weapon:'SMG بی‌صدا',hp:86,speed:6.15,damage:1.2,magazine:24},
+    operator:{name:'اپراتور',english:'OPERATOR',role:'متخصص یورش',description:'نیروی مدرن چندمنظوره با خشاب بزرگ‌تر و آتش سریع؛ برای درگیری نزدیک و متوسط طراحی شده است.',skill:'آتش پیاپی',skillDescription:'برای چند ثانیه سرعت شلیک بیشتر می‌شود و می‌توانی موج دشمنان را عقب برانی.',weapon:'کاربین اتوماتیک',hp:112,speed:4.85,damage:1.2,magazine:36},
+    medic:{name:'پزشک',english:'MEDIC',role:'پشتیبان بقا',description:'بیشترین توان بازیابی سلامتی را دارد؛ اگر چند لحظه آسیب نبیند، به‌آرامی سلامتی‌اش برمی‌گردد.',skill:'درمان فوری',skillDescription:'۵۵ واحد سلامتی بازیابی می‌شود؛ همچنین پس از ۷ ثانیه بدون آسیب، درمان تدریجی فعال می‌شود.',weapon:'کاربین امدادی',hp:145,speed:4.2,damage:.96,magazine:30},
+    heavy:{name:'سنگین‌اسلحه',english:'HEAVY',role:'تانک خط مقدم',description:'دارای بیشترین سلامتی و خشاب بسیار بزرگ؛ حرکتش کندتر است اما قدرت آتش بالایی دارد.',skill:'زره تقویتی',skillDescription:'برای ۷ ثانیه بخش بزرگی از آسیب گلوله‌های دشمن خنثی می‌شود.',weapon:'مسلسل سنگین',hp:185,speed:3.25,damage:1.4,magazine:60},
+    elite:{name:'الیت',english:'ELITE',role:'نیروی ویژه',description:'ترکیبی از سرعت، دقت و قدرت؛ برای بازیکنانی که سبک تهاجمی و حرفه‌ای را ترجیح می‌دهند.',skill:'حالت فوق‌العاده',skillDescription:'برای ۸ ثانیه سرعت شلیک و قدرت گلوله افزایش پیدا می‌کند.',weapon:'کاربین الیت',hp:116,speed:5.25,damage:1.62,magazine:35}
+  };
+  const $=id=>document.getElementById(id);
+  const grid=$('classGrid');
+  if(!grid)return;
+  window.__selectedCharacterId='soldier';
+  function setSelected(id){
+    const c=data[id];if(!c)return;
+    window.__selectedCharacterId=id;
+    try{localStorage.setItem('lastShelterSelectedClass',id)}catch(e){}
+    grid.querySelectorAll('.classCard').forEach(card=>{
+      const active=card.dataset.character===id;
+      card.classList.toggle('isSelected',active);
+      card.setAttribute('aria-pressed',active?'true':'false');
+    });
+    const fields={profileName:c.name,profileEnglish:c.english,profileRole:c.role,profileDescription:c.description,profileSkill:c.skill,profileSkillDescription:c.skillDescription,profileWeapon:c.weapon,footerClassName:c.name};
+    Object.keys(fields).forEach(k=>{const el=$(k);if(el)el.textContent=fields[k]});
+    const widths={statHp:Math.min(100,c.hp/185*100),statSpeed:Math.min(100,c.speed/6.2*100),statDamage:Math.min(100,c.damage/2.7*100),statAmmo:Math.min(100,c.magazine/60*100)};
+    Object.keys(widths).forEach(k=>{const el=$(k);if(el)el.style.width=widths[k]+'%'});
+    const n=Array.from(grid.querySelectorAll('.classCard')).findIndex(card=>card.dataset.character===id);
+    const portrait=$('profilePortrait');
+    if(portrait&&n>=0){portrait.style.backgroundPosition=(n*100/7)+'% center';portrait.style.backgroundImage='';}
+  }
+  grid.addEventListener('click',e=>{
+    const card=e.target.closest('.classCard');
+    if(card&&grid.contains(card))setSelected(card.dataset.character);
+  });
+  grid.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target.closest('.classCard'))setSelected(e.target.closest('.classCard').dataset.character);
+  });
+  window.__applyCharacterSelection=setSelected;
+  const start=$('start');
+  if(start)start.addEventListener('click',()=>{
+    setTimeout(()=>{
+      if(!window.__gameModuleReady){
+        alert('منوی انتخاب سرباز فعال است، اما موتور سه‌بعدی بارگذاری نشده است. اینترنت را روشن کن و صفحه را دوباره باز کن؛ فایل‌های بازی از سرور سه‌بعدی دریافت می‌شوند.');
+      }
+    },500);
+  });
+  setSelected('soldier');
+  setTimeout(()=>{
+    if(!window.__gameModuleReady){
+      const foot=document.querySelector('#menu .footer');
+      if(foot)foot.textContent='انتخاب سرباز فعال است؛ برای اجرای میدان سه‌بعدی اتصال اینترنت لازم است.';
+    }
+  },7000);
+})();
+</script>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -114,7 +173,7 @@ const characterClasses=[
 ];
 let selectedClass=characterClasses[0],characterAtlas='',abilityCooldown=0,sniperBoost=0,stealthTime=0,armorTime=0,scanTime=0,rapidFireTime=0,eliteTime=0,timeSinceHit=99;
 function updateProfileBars(){const c=selectedClass;$('statHp').style.width=Math.min(100,c.hp/185*100)+'%';$('statSpeed').style.width=Math.min(100,c.speed/6.2*100)+'%';$('statDamage').style.width=Math.min(100,c.damage/2.7*100)+'%';$('statAmmo').style.width=Math.min(100,c.magazine/60*100)+'%'}
-function setCharacter(id){const c=characterClasses.find(x=>x.id===id);if(!c)return;selectedClass=c;document.querySelectorAll('.classCard').forEach(card=>card.classList.toggle('isSelected',card.dataset.character===id));$('profileName').textContent=c.name;$('profileEnglish').textContent=c.english;$('profileRole').textContent=c.role;$('profileDescription').textContent=c.description;$('profileSkill').textContent=c.skill;$('profileSkillDescription').textContent=c.skillDescription;$('profileWeapon').textContent=c.weapon;$('footerClassName').textContent=c.name;updateProfileBars();if(characterAtlas){const n=characterClasses.findIndex(x=>x.id===id),url='url("data:image/webp;base64,'+characterAtlas+'")',position=(n*100/7)+'% center';document.querySelectorAll('[data-portrait]').forEach(el=>{el.style.backgroundImage=url;el.style.backgroundPosition=(Number(el.dataset.portrait)*100/7)+'% center'});$('profilePortrait').style.backgroundImage=url;$('profilePortrait').style.backgroundPosition=position}}
+function setCharacter(id){const c=characterClasses.find(x=>x.id===id);if(!c)return;selectedClass=c;window.__selectedCharacterId=id;document.querySelectorAll('.classCard').forEach(card=>card.classList.toggle('isSelected',card.dataset.character===id));$('profileName').textContent=c.name;$('profileEnglish').textContent=c.english;$('profileRole').textContent=c.role;$('profileDescription').textContent=c.description;$('profileSkill').textContent=c.skill;$('profileSkillDescription').textContent=c.skillDescription;$('profileWeapon').textContent=c.weapon;$('footerClassName').textContent=c.name;updateProfileBars();if(characterAtlas){const n=characterClasses.findIndex(x=>x.id===id),url='url("data:image/webp;base64,'+characterAtlas+'")',position=(n*100/7)+'% center';document.querySelectorAll('[data-portrait]').forEach(el=>{el.style.backgroundImage=url;el.style.backgroundPosition=(Number(el.dataset.portrait)*100/7)+'% center'});$('profilePortrait').style.backgroundImage=url;$('profilePortrait').style.backgroundPosition=position}}
 function loadCharacterAtlas(){fetch('./character-atlas.webp.b64').then(r=>{if(!r.ok)throw new Error('portrait atlas unavailable');return r.text()}).then(t=>{characterAtlas=t.trim();setCharacter(selectedClass.id)}).catch(e=>console.warn('Character portrait fallback active',e))}
 function updateCombatEffects(dt){abilityCooldown=Math.max(0,abilityCooldown-dt);sniperBoost=Math.max(0,sniperBoost-dt);stealthTime=Math.max(0,stealthTime-dt);armorTime=Math.max(0,armorTime-dt);scanTime=Math.max(0,scanTime-dt);rapidFireTime=Math.max(0,rapidFireTime-dt);eliteTime=Math.max(0,eliteTime-dt);timeSinceHit+=dt;if(selectedClass.id==='medic'&&timeSinceHit>7&&hp<selectedClass.hp)hp=Math.min(selectedClass.hp,hp+1.1*dt);const btn=$('abilityBtn');if(btn){btn.disabled=abilityCooldown>0||!running;btn.textContent=abilityCooldown>0?Math.ceil(abilityCooldown)+'ث':'ویژه';btn.title=selectedClass.skill}}
 function activateAbility(){if(!running||paused||abilityCooldown>0)return;abilityCooldown=22;switch(selectedClass.id){case'soldier':hp=Math.min(selectedClass.hp,hp+18);ammo=Math.min(selectedClass.magazine,ammo+12);reserve=Math.min(260,reserve+30);break;case'sniper':sniperBoost=6;break;case'commander':scanTime=4.5;break;case'assassin':stealthTime=7;break;case'operator':rapidFireTime=6;break;case'medic':hp=Math.min(selectedClass.hp,hp+55);timeSinceHit=0;break;case'heavy':armorTime=7;break;case'elite':eliteTime=8;break}updateHud();updateCombatEffects(0)}
@@ -359,7 +418,7 @@ addEventListener('keydown',e=>{if(e.code==='KeyR')reload();if(e.code==='ShiftLef
 $('abilityBtn').onclick=activateAbility;$('pauseBtn').onclick=pause;$('resume').onclick=()=>{paused=false;$('pausePanel').classList.add('hidden');running=true;clock.start();raf=requestAnimationFrame(loop)};$('saveExit').onclick=()=>{save();running=false;paused=false;$('pausePanel').classList.add('hidden');$('menu').classList.remove('hidden');$('controls').classList.add('hidden')};$('nextWave').onclick=()=>{wave++;hp=Math.min(100,hp+15);ammo=selectedClass.magazine;reserve=Math.min(320,reserve+30);startGame(true)};$('saveWave').onclick=()=>{$('wavePanel').classList.add('hidden');$('menu').classList.remove('hidden');save()};$('retry').onclick=()=>startGame(false);$('home').onclick=()=>{$('overPanel').classList.add('hidden');$('menu').classList.remove('hidden')};$('how').onclick=()=>alert('موبایل: دسته سمت چپ برای حرکت، کشیدن سمت راست تصویر برای چرخش دوربین، دکمه قرمز برای شلیک، دکمه دایره‌ای برای نشانه‌گیری، خشاب برای بارگذاری و دویدن برای سرعت بیشتر. رایانه: WASD حرکت، ماوس چرخش، کلیک چپ شلیک، R خشاب و Shift دویدن. مدافعان ارتش ایران در مواضع داخل سازه مستقرند و از سالن مرکزی و دو تونل دفاع می‌کنند؛ تا ورود به محدوده پایگاه به تو حمله نمی‌کنند.');
 $('soundBtn').onclick=()=>{soundOn=!soundOn;$('soundBtn').textContent=soundOn?'♪ صدا روشن':'♪ صدا خاموش'};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)pause()});
-loadCharacterAtlas();setCharacter('soldier');
+loadCharacterAtlas();setCharacter(window.__selectedCharacterId||'soldier');window.__gameModuleReady=true;
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Offline install support unavailable',err)))}
 $('controls').classList.add('hidden');$('tip').classList.add('hidden');
 })();
