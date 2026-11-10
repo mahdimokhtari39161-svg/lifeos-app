@@ -195,6 +195,7 @@ function box(parent,x,y,z,sx,sy,sz,material){let o=new THREE.Mesh(new THREE.BoxG
 function sphere(parent,x,y,z,r,material,seg=16){let o=new THREE.Mesh(new THREE.SphereGeometry(r,seg,12),material);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
 function cylinder(parent,x,y,z,rt,rb,h,material,seg=12){let o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),material);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
 function init(){
+ player=new THREE.Vector3(8.25,0,-52);
  scene=new THREE.Scene();scene.background=new THREE.Color(0x343d3b);scene.fog=new THREE.FogExp2(0x424a45,.006);
  camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,.08,220);camera.rotation.order='YXZ';
  const compactDevice=matchMedia('(pointer: coarse)').matches||innerWidth<760;
@@ -377,9 +378,29 @@ function spawnEnemy(){
 function updateHud(){$('hp').textContent=Math.max(0,Math.ceil(hp));$('hpbar').style.width=clamp(hp/selectedClass.hp*100,0,100)+'%';$('wave').textContent=wave.toLocaleString('fa-IR');$('kills').textContent=kills.toLocaleString('fa-IR');$('ammo').textContent=ammo+'/'+reserve}
 function save(){lastSave={wave,kills,hp,best:Math.max(best,kills)};localStorage.setItem('lastShelter3DSave',JSON.stringify(lastSave));localStorage.setItem('lastShelter3DBest',String(Math.max(best,kills)))}
 function load(){try{let d=JSON.parse(localStorage.getItem('lastShelter3DSave'));if(!d)return false;wave=d.wave||1;kills=d.kills||0;hp=d.hp||100;return true}catch(e){return false}}
+function makePlayerAvatar(){
+ const g=new THREE.Group();
+ const uniform=mat(0x58634b,.96),vest=mat(0x343d33,.92),helmet=mat(0x444d3d,.9),skin=mat(0x9b795f,.95),boot=mat(0x202421,.9),weapon=mat(0x252d2b,.55,.35);
+ box(g,0,1.18,0,.55,.72,.32,uniform);
+ box(g,0,1.23,-.19,.48,.46,.09,vest);
+ sphere(g,0,1.78,0,.18,skin,14);sphere(g,0,1.91,0,.215,helmet,14);
+ box(g,0,1.72,-.17,.32,.09,.08,helmet);
+ for(const side of [-1,1]){
+  const arm=box(g,side*.36,1.35,-.015,.18,.58,.2,uniform);arm.rotation.z=side*-.12;
+  box(g,side*.16,.42,0,.2,.65,.22,uniform);
+  box(g,side*.16,.09,-.035,.23,.15,.34,boot);
+ }
+ box(g,-.25,1.43,-.03,.12,.07,.02,mat(0x23934b));
+ box(g,-.25,1.405,-.03,.12,.023,.021,mat(0xe8e6d9));
+ box(g,-.25,1.38,-.03,.12,.023,.022,mat(0xc83c32));
+ box(g,.02,1.15,-.34,.11,.11,.66,weapon);
+ box(g,.02,1.15,-.66,.045,.045,.34,weapon);
+ g.userData.isPlayerAvatar=true;
+ return g;
+}
 function showEngineError(message){
  const el=$('engineError');if(!el)return;
- el.textContent='بازی نتوانست تصویر سه‌بعدی را اجرا کند: '+message+' — صفحه را با Chrome دوباره باز کن.';
+ el.textContent='خطای اجرای سه‌بعدی: '+String(message).slice(0,900)+' — جزئیات بیشتر در Console مرورگر ثبت شده است.';
  el.classList.remove('hidden');
 }
 function updateCameraPose(snap=false){
@@ -407,7 +428,7 @@ function cycleCamera(){
  $('crosshair').style.display=cameraMode===2?'none':'block';
  updateCameraPose(true);
 }
-function startGame(keep=false){if(!scene||!renderer){try{init()}catch(err){console.error('Unable to start 3D game:',err);showEngineError(err&&err.message?err.message:'خطای راه‌اندازی WebGL');return}if(!renderer)return}enemyList.forEach(e=>scene.remove(e.mesh));corpseList.forEach(e=>scene.remove(e.mesh));enemyList=[];corpseList=[];effects.forEach(e=>scene.remove(e.obj));effects=[];bullets=[];if(!keep){wave=1;kills=0;hp=selectedClass.hp}else{hp=Math.min(selectedClass.hp,hp||selectedClass.hp)}ammo=selectedClass.magazine;reserve=selectedClass.reserve;abilityCooldown=0;sniperBoost=0;stealthTime=0;armorTime=0;scanTime=0;rapidFireTime=0;eliteTime=0;timeSinceHit=99;spawned=0;targetCount=7+wave*2;spawnTimer=1;between=false;paused=false;running=true;$('menu').classList.add('hidden');$('pausePanel').classList.add('hidden');$('wavePanel').classList.add('hidden');$('overPanel').classList.add('hidden');$('engineError').classList.add('hidden');$('controls').classList.remove('hidden');$('tip').classList.remove('hidden');player.set(8.25,0,-52);yaw=Math.PI;pitch=0;if(!playerAvatar){playerAvatar=makeSoldier('rifleman');scene.add(playerAvatar)}playerAvatar.position.set(player.x,0,player.z);playerAvatar.rotation.y=yaw;updateCameraPose(true);applyClassWeapon();updateHud();clock.start();try{renderer.render(scene,camera)}catch(err){running=false;showEngineError(err&&err.message?err.message:'خطا در نمایش اولین فریم');return}if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}
+function startGame(keep=false){if(!scene||!renderer||!camera||!player||!gun||!raycaster){try{if(!player)player=new THREE.Vector3(8.25,0,-52);if(!scene||!renderer||!camera||!gun||!raycaster)init()}catch(err){console.error('Unable to start 3D game:',err);showEngineError(err&&err.stack?err.stack:(err&&err.message?err.message:'خطای راه‌اندازی WebGL'));return}if(!renderer||!camera||!player||!gun||!raycaster){showEngineError('اجزای اصلی بازی کامل ساخته نشدند؛ صفحه را دوباره بارگذاری کن.');return}}enemyList.forEach(e=>scene.remove(e.mesh));corpseList.forEach(e=>scene.remove(e.mesh));enemyList=[];corpseList=[];effects.forEach(e=>scene.remove(e.obj));effects=[];bullets=[];if(!keep){wave=1;kills=0;hp=selectedClass.hp}else{hp=Math.min(selectedClass.hp,hp||selectedClass.hp)}ammo=selectedClass.magazine;reserve=selectedClass.reserve;abilityCooldown=0;sniperBoost=0;stealthTime=0;armorTime=0;scanTime=0;rapidFireTime=0;eliteTime=0;timeSinceHit=99;spawned=0;targetCount=7+wave*2;spawnTimer=1;between=false;paused=false;running=true;$('menu').classList.add('hidden');$('pausePanel').classList.add('hidden');$('wavePanel').classList.add('hidden');$('overPanel').classList.add('hidden');$('engineError').classList.add('hidden');$('controls').classList.remove('hidden');$('tip').classList.remove('hidden');player.set(8.25,0,-52);yaw=Math.PI;pitch=0;if(!playerAvatar){playerAvatar=makePlayerAvatar();scene.add(playerAvatar)}playerAvatar.position.set(player.x,0,player.z);playerAvatar.rotation.y=yaw;updateCameraPose(true);applyClassWeapon();updateHud();clock.start();try{renderer.render(scene,camera)}catch(err){running=false;console.error('WAR STRIKE first render failed:',err&&err.stack?err.stack:err);showEngineError(err&&err.stack?err.stack:(err&&err.message?err.message:'خطا در نمایش اولین فریم'));return}if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}
 function direction(){return new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).normalize()}
 function fire(){
  if(!running||paused||between||reloading||!raycaster||!camera)return;
@@ -481,7 +502,7 @@ function loop(){
   if(gun&&cameraMode===0){gun.position.x+=(aiming?.05:.34-gun.position.x)*Math.min(1,dt*12);gun.position.y+=(-.34+bob-gun.position.y)*Math.min(1,dt*12);gun.position.z+=(-.68+gunKick-gun.position.z)*Math.min(1,dt*15);gun.rotation.z+=((moving?Math.sin(performance.now()*.009)*.018:0)-gun.rotation.z)*Math.min(1,dt*8);if(gun.userData.flare)gun.userData.flare.visible=flash.intensity>0}
   gunKick=Math.max(0,gunKick-dt*.7);updateCameraPose(false);
   renderer.render(scene,camera);updateHud();raf=requestAnimationFrame(loop);
- }catch(err){console.error('WAR STRIKE render loop failed:',err);running=false;showEngineError(err&&err.message?err.message:'خطای ناشناخته هنگام رندر سه‌بعدی')}
+ }catch(err){console.error('WAR STRIKE render loop failed:',err&&err.stack?err.stack:err);running=false;showEngineError(err&&err.stack?err.stack:(err&&err.message?err.message:'خطای ناشناخته هنگام رندر سه‌بعدی'))}
 }
 function resize(){if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,matchMedia('(pointer: coarse)').matches?1.1:1.4))}
 function pause(){if(!running)return;paused=true;running=false;$('pausePanel').classList.remove('hidden')}
