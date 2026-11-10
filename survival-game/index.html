@@ -188,6 +188,12 @@ function buildCompound(){
   const sign=box(scene,tunnelX,3.2,zc-9,.9,.28,.12,warning);sign.rotation.z=0;
   for(const z of [zc-6,zc,zc+6]){const lamp=new THREE.PointLight(0xb9d1bd,.7,10);lamp.position.set(tunnelX,2.8,z);scene.add(lamp);box(scene,tunnelX,3,z,.5,.1,.2,lightMat)}
  }
+ // Defensive set dressing only: sandbag cover and supply crates around the access approaches; the facility geometry stays unchanged.
+ const sand=mat(0x8b8063),crate=mat(0x51483a),darkMetal=mat(0x252d2b,.55,.35);
+ for(const [bx,bz,rot] of [[4.4,-35,0],[12.1,-35,0],[-5,1,Math.PI/2],[5,1,Math.PI/2]]){
+  for(let j=0;j<4;j++){const bag=box(scene,bx+(rot?0:(j-1.5)*.42),.32+j%2*.18,bz+(rot?(j-1.5)*.42:0),rot?.82:.48,.32,rot?.48:.82,sand);bag.rotation.y=rot}
+ }
+ for(const [cx,cz] of [[-13,-22],[13,-20],[-13,15],[13,15]]){box(scene,cx,.48,cz,1.1,.9,.9,crate);box(scene,cx,.96,cz,.85,.08,.72,darkMetal)}
  // Surface rock berms and access aprons, with both tunnel mouths kept open.
  const rock=mat(0x515950),rock2=mat(0x62665d);
  for(let i=0;i<34;i++){const side=i%2?1:-1,x=side*rnd(22,34),z=rnd(-52,52),h=rnd(2,7);const b=new THREE.Mesh(new THREE.DodecahedronGeometry(rnd(2.5,5),1),i%3?rock:rock2);b.position.set(x,h*.35,z);b.scale.set(1,h/3,rnd(1,2));b.rotation.set(rnd(0,1),rnd(0,6),rnd(0,1));b.castShadow=true;scene.add(b)}
@@ -240,20 +246,20 @@ function applyClassWeapon(){
  gun.position.x=selectedClass.id==='sniper'?.38:.34;
  gun.position.z=selectedClass.id==='sniper'?.78*-1:-.68;
 }
-let defenderCamo=null;
-function getDefenderCamo(){
- if(defenderCamo)return defenderCamo;
+let defenderCamo=null,defenderWoodlandCamo=null;
+function getDefenderCamo(woodland=false){
+ if(woodland&&defenderWoodlandCamo)return defenderWoodlandCamo;if(!woodland&&defenderCamo)return defenderCamo;
  const c=document.createElement('canvas');c.width=256;c.height=256;const ctx=c.getContext('2d');
- ctx.fillStyle='#9a8d69';ctx.fillRect(0,0,256,256);
- const colors=['#6d7654','#4c5942','#b2a17a','#746348','#8e7954','#596044','#c2ae82'];
- for(let i=0;i<260;i++){ctx.fillStyle=colors[Math.floor(Math.random()*colors.length)];ctx.beginPath();const x=Math.random()*256,y=Math.random()*256;ctx.moveTo(x,y);for(let k=0;k<7;k++){const a=k/7*Math.PI*2,r=rnd(5,19);ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r*.72)}ctx.closePath();ctx.fill()}
- const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(2,2);tex.colorSpace=THREE.SRGBColorSpace;defenderCamo=tex;return tex;
+ ctx.fillStyle=woodland?'#596348':'#9a8d69';ctx.fillRect(0,0,256,256);
+ const colors=woodland?['#263f2b','#40583b','#71805a','#29372b','#8c8a61','#4d6944']:['#6d7654','#4c5942','#b2a17a','#746348','#8e7954','#596044','#c2ae82'];
+ for(let i=0;i<300;i++){ctx.fillStyle=colors[Math.floor(Math.random()*colors.length)];ctx.beginPath();const x=Math.random()*256,y=Math.random()*256;ctx.moveTo(x,y);for(let k=0;k<7;k++){const a=k/7*Math.PI*2,r=rnd(5,19);ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r*.72)}ctx.closePath();ctx.fill()}
+ const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(2,2);tex.colorSpace=THREE.SRGBColorSpace;if(woodland)defenderWoodlandCamo=tex;else defenderCamo=tex;return tex;
 }
 function makeSoldier(role='rifleman'){
  const g=new THREE.Group(),health=2+Math.floor(wave*.25);
  if(soldierTemplate){
   const model=cloneSkeleton(soldierTemplate);
-  model.traverse(o=>{if(!o.isMesh)return;const list=Array.isArray(o.material)?o.material:[o.material];const updated=list.map(original=>{const m=original.clone(),tag=((m.name||'')+' '+(o.name||'')).toLowerCase();if(/head|face|skin|eye/.test(tag))return m;if(/weapon|rifle|gun/.test(tag)){m.color.setHex(0x252b29);return m}if(/boot|shoe/.test(tag)){m.color.setHex(0x20231f);return m}if(/helmet|hat/.test(tag)){m.color.setHex(0x4b5540);return m}m.map=getDefenderCamo();m.color.setHex(0xffffff);m.roughness=.94;m.needsUpdate=true;return m});o.material=Array.isArray(o.material)?updated:updated[0]});
+  model.traverse(o=>{if(!o.isMesh)return;const list=Array.isArray(o.material)?o.material:[o.material];const updated=list.map(original=>{const m=original.clone(),tag=((m.name||'')+' '+(o.name||'')).toLowerCase();if(/head|face|skin|eye/.test(tag))return m;if(/weapon|rifle|gun/.test(tag)){m.color.setHex(0x252b29);return m}if(/boot|shoe/.test(tag)){m.color.setHex(0x20231f);return m}if(/helmet|hat/.test(tag)){m.color.setHex(0x4b5540);return m}m.map=getDefenderCamo(role==='marksman'||role==='officer');m.color.setHex(0xffffff);m.roughness=.94;m.needsUpdate=true;return m});o.material=Array.isArray(o.material)?updated:updated[0]});
   const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
   const scale=1.82/Math.max(.001,size.y);model.scale.setScalar(scale);
   const scaledBounds=new THREE.Box3().setFromObject(model);model.position.y-=scaledBounds.min.y;
@@ -329,7 +335,7 @@ function updateEnemies(dt){
   // Defenders hold their assigned posts; they only engage once the player enters the underground complex or access tunnel.
   if(insideBase&&scanTime<=0&&d<30){e.attack-=dt;if(e.attack<=0){enemyShoot(e,d);e.attack=rnd(1.1,2.0)}}
   if(e.hit>0){e.hit-=dt;e.mesh.scale.setScalar(1.025); }else e.mesh.scale.setScalar(1);
-  if(!e.mixer&&e.mesh.userData.legs){let u=e.mesh.userData;u.phase+=dt*8;u.legs[0].rotation.x=Math.sin(u.phase)*.65;u.legs[1].rotation.x=-Math.sin(u.phase)*.65;u.arms[0].rotation.x=-.35+Math.sin(u.phase)*.12;u.arms[1].rotation.x=-.35-Math.sin(u.phase)*.12}
+  if(!e.mixer&&e.mesh.userData.legs){let u=e.mesh.userData;u.phase+=dt*1.8;u.legs[0].rotation.x=Math.sin(u.phase)*.035;u.legs[1].rotation.x=-Math.sin(u.phase)*.035;u.arms[0].rotation.x=-.35+Math.sin(u.phase)*.025;u.arms[1].rotation.x=-.35-Math.sin(u.phase)*.025}
  }
  for(let i=corpseList.length-1;i>=0;i--){const c=corpseList[i];c.deathTimer-=dt;const t=clamp(1-c.deathTimer/.72,0,1);c.mesh.rotation.x=-1.15*t;c.mesh.position.y=-.18*t;c.mesh.scale.set(1,Math.max(.06,1-.22*t),1);if(c.deathTimer<=0){scene.remove(c.mesh);corpseList.splice(i,1)}}
 }
