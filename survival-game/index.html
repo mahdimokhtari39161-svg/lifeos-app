@@ -264,7 +264,6 @@ function buildCompound(){
  for(const x of [-24,24]){box(scene,x,4,-8,2.5,8,2.5,reinforced);box(scene,x,8.2,-8,4,.4,4,metal)}
 }
 function buildGun(){
-function buildGun(){
  gun=new THREE.Group();camera.add(gun);gun.position.set(.34,-.34,-.68);gun.rotation.set(-.04,-.08,-.02);
  const black=mat(0x1d2527,.35,.72),poly=mat(0x37413c,.52,.28),rubber=mat(0x222623,.88),steel=mat(0x87908b,.28,.82),sleeve=mat(0x46513f),glove=mat(0x30372e);
  const parts={black,poly,rubber,steel,sleeve,glove};
