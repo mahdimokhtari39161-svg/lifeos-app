@@ -131,6 +131,8 @@ public class MainActivity extends Activity {
     private Button installReceivedButton;
     private String hotspotSsid = "";
     private String hotspotPassword = "";
+    private String pendingQrSsid = "";
+    private String pendingQrPassword = "";
     private ReceivedBundle pendingReceivedInstall;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback wifiNetworkCallback;
@@ -942,8 +944,18 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == WIFI_PERMISSION_REQUEST) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startLocalOnlyHotspot();
+                if (!pendingQrSsid.isEmpty() && Build.VERSION.SDK_INT >= 29) {
+                    String ssid = pendingQrSsid;
+                    String password = pendingQrPassword;
+                    pendingQrSsid = "";
+                    pendingQrPassword = "";
+                    connectToQrHotspot(ssid, password);
+                } else {
+                    startLocalOnlyHotspot();
+                }
             } else {
+                pendingQrSsid = "";
+                pendingQrPassword = "";
                 setStatus("مجوز Wi-Fi نزدیک داده نشد. می‌توانید از Wi-Fi فعلی استفاده کنید.");
             }
         }
@@ -1608,6 +1620,13 @@ public class MainActivity extends Activity {
         stopDiscovery();
         if (receiving) stopReceiveSession();
         releaseTransferWakeLock();
+        if (connectivityManager != null) {
+            try { connectivityManager.bindProcessToNetwork(null); } catch (Exception ignored) { }
+            if (wifiNetworkCallback != null) {
+                try { connectivityManager.unregisterNetworkCallback(wifiNetworkCallback); } catch (Exception ignored) { }
+                wifiNetworkCallback = null;
+            }
+        }
         transferExecutor.shutdownNow();
         super.onDestroy();
     }
