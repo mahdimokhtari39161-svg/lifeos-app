@@ -401,6 +401,375 @@ public class MainActivity extends Activity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
+
+    // QR pairing. The receiver encodes its local IP, port, one-time PIN and hotspot credentials.
+    private void startQrScanner() {
+        try {
+            IntentIntegrator integrator = new IntentIntegrator(this);
+            integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+            integrator.setPrompt("کد ShareNow گوشی دریافت‌کننده را اسکن کنید");
+            integrator.setBeepEnabled(false);
+            integrator.setOrientationLocked(true);
+            integrator.initiateScan();
+        } catch (Exception e) {
+            showToast("اسکنر QR در دسترس نیست: " + safeMessage(e));
+        }
+    }
+
+    private void showConnectionQr() {
+        if (!receiving || sessionPin.isEmpty()) {
+            showToast("ابتدا در گوشی مقصد حالت دریافت را فعال کنید.");
+            return;
+        }
+        String ip = getLocalIpAddress();
+        try {
+            String payload = "SHARENOW|2|" + ip + "|" + TCP_PORT + "|" + sessionPin + "|"
+                    + android.util.Base64.encodeToString(hotspotSsid.getBytes("UTF-8"), android.util.Base64.NO_WRAP)
+                    + "|"
+                    + android.util.Base64.encodeToString(hotspotPassword.getBytes("UTF-8"), android.util.Base64.NO_WRAP);
+            BitMatrix matrix = new MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, 720, 720);
+            Bitmap bitmap = Bitmap.createBitmap(720, 720, Bitmap.Config.ARGB_8888);
+            for (int y = 0; y < 720; y++) {
+                for (int x = 0; x < 720; x++) {
+                    bitmap.setPixel(x, y, matrix.get(x, y) ? Color.BLACK : Color.WHITE);
+                }
+            }
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setGravity(Gravity.CENTER);
+            box.setPadding(dp(12), dp(12), dp(12), dp(12));
+            ImageView image = new ImageView(this);
+            image.setImageBitmap(bitmap);
+            image.setAdjustViewBounds(true);
+            box.addView(image, new LinearLayout.LayoutParams(dp(250), dp(250)));
+            TextView info = text("IP: " + ip + "\nکد امنیتی: " + sessionPin
+                    + "\nگوشی فرستنده این کد را در ShareNow اسکن کند.", 14, BG, true);
+            info.setGravity(Gravity.CENTER);
+            box.addView(info, matchWrap());
+            new AlertDialog.Builder(this)
+                    .setTitle("اتصال سریع ShareNow")
+                    .setView(box)
+                    .setPositiveButton("بستن", null)
+                    .show();
+        } catch (Exception e) {
+            showToast("ساخت QR ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void handleConnectionQr(String contents) {
+        try {
+            String[] fields = contents.split("\\|", -1);
+            if (fields.length < 5 || !fields[0].equals("SHARENOW") || !fields[1].equals("2")) {
+                showToast("این کد QR مربوط به اتصال ShareNow نیست.");
+                return;
+            }
+            String ip = fields[2];
+            int port = Integer.parseInt(fields[3]);
+            String pin = fields[4];
+            if (port != TCP_PORT || pin.length() != 8 || !ip.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) {
+                showToast("اطلاعات اتصال داخل QR معتبر نیست.");
+                return;
+            }
+            ipInput.setText(ip);
+            pinInput.setText(pin);
+
+            String ssid = fields.length > 5
+                    ? new String(android.util.Base64.decode(fields[5], android.util.Base64.NO_WRAP), "UTF-8") : "";
+            String password = fields.length > 6
+                    ? new String(android.util.Base64.decode(fields[6], android.util.Base64.NO_WRAP), "UTF-8") : "";
+
+            if (!ssid.isEmpty() && Build.VERSION.SDK_INT >= 29) {
+                if (Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
+                    pendingQrSsid = ssid;
+                    pendingQrPassword = password;
+                    requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, WIFI_PERMISSION_REQUEST);
+                } else {
+                    connectToQrHotspot(ssid, password);
+                }
+            } else if (!ssid.isEmpty()) {
+                setStatus("QR خوانده شد. ابتدا به شبکهٔ " + ssid + " متصل شوید، سپس ارسال را بزنید.");
+                try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); } catch (Exception ignored) { }
+            } else {
+                setStatus("گوشی مقصد شناسایی شد؛ حالا فایل‌ها را انتخاب و ارسال کنید.");
+                showToast("اطلاعات اتصال ثبت شد؛ هر دو گوشی باید روی یک Wi-Fi باشند.");
+            }
+        } catch (Exception e) {
+            showToast("خواندن QR ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void connectToQrHotspot(String ssid, String password) {
+        try {
+            if (connectivityManager == null) {
+                showToast("مدیریت اتصال Wi-Fi در این گوشی در دسترس نیست.");
+                return;
+            }
+            if (wifiNetworkCallback != null) {
+                try { connectivityManager.unregisterNetworkCallback(wifiNetworkCallback); }
+                catch (Exception ignored) { }
+                wifiNetworkCallback = null;
+            }
+            WifiNetworkSpecifier.Builder specifierBuilder = new WifiNetworkSpecifier.Builder().setSsid(ssid);
+            if (password != null && !password.isEmpty()) specifierBuilder.setWpa2Passphrase(password);
+            WifiNetworkSpecifier specifier = specifierBuilder.build();
+            NetworkRequest request = new NetworkRequest.Builder()
+                    .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                    .setNetworkSpecifier(specifier)
+                    .build();
+
+            setStatus("درخواست اتصال به شبکهٔ " + ssid + "؛ تأیید پنجرهٔ Android را انجام دهید.");
+            wifiNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    connectivityManager.bindProcessToNetwork(network);
+                    mainHandler.post(() -> {
+                        setStatus("گوشی‌ها متصل شدند؛ فایل‌ها یا برنامه‌ها را انتخاب و ارسال کنید.");
+                        showToast("اتصال Wi-Fi برقرار شد. آمادهٔ ارسال هستید.");
+                    });
+                }
+                @Override
+                public void onUnavailable() {
+                    mainHandler.post(() -> setStatus("اتصال خودکار Wi-Fi انجام نشد؛ از تنظیمات Wi-Fi دستی وصل شوید."));
+                }
+                @Override
+                public void onLost(Network network) {
+                    mainHandler.post(() -> setStatus("اتصال Wi-Fi قطع شد."));
+                }
+            };
+            connectivityManager.requestNetwork(request, wifiNetworkCallback, 30_000);
+        } catch (SecurityException e) {
+            setStatus("Android اجازهٔ اتصال نداد؛ شبکه را از تنظیمات Wi-Fi انتخاب کنید.");
+            try { startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS)); } catch (Exception ignored) { }
+        } catch (Exception e) {
+            setStatus("اتصال Wi-Fi ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void showInstalledAppsDialog() {
+        List<AppEntry> apps = getInstalledApps();
+        if (apps.isEmpty()) {
+            showToast("برنامهٔ قابل انتقالی پیدا نشد.");
+            return;
+        }
+        String[] labels = new String[apps.size()];
+        boolean[] checked = new boolean[apps.size()];
+        for (int i = 0; i < apps.size(); i++) {
+            AppEntry app = apps.get(i);
+            labels[i] = (app.isGame ? "🎮 " : "📱 ") + app.label + "  •  " + app.versionName;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("انتخاب برنامه‌ها و بازی‌ها")
+                .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+                .setNegativeButton("انصراف", null)
+                .setPositiveButton("ساخت بسته و افزودن به ارسال", (dialog, which) -> {
+                    List<AppEntry> selected = new ArrayList<>();
+                    for (int i = 0; i < apps.size(); i++) if (checked[i]) selected.add(apps.get(i));
+                    if (selected.isEmpty()) {
+                        showToast("هیچ برنامه‌ای انتخاب نشد.");
+                        return;
+                    }
+                    setStatus("در حال آماده‌سازی بستهٔ برنامه‌ها و بازی‌ها...");
+                    transferExecutor.execute(() -> createAppBundles(selected));
+                })
+                .show();
+    }
+
+    private List<AppEntry> getInstalledApps() {
+        List<AppEntry> result = new ArrayList<>();
+        PackageManager pm = getPackageManager();
+        try {
+            List<ApplicationInfo> installed = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+            for (ApplicationInfo info : installed) {
+                if (info.packageName.equals(getPackageName())) continue;
+                if (pm.getLaunchIntentForPackage(info.packageName) == null) continue;
+                File base = new File(info.sourceDir == null ? "" : info.sourceDir);
+                if (!base.isFile() || !base.canRead()) continue;
+                String label;
+                try { label = pm.getApplicationLabel(info).toString(); }
+                catch (Exception e) { label = info.packageName; }
+                String version = "";
+                try {
+                    PackageInfo pi = pm.getPackageInfo(info.packageName, 0);
+                    version = pi.versionName == null ? "" : pi.versionName;
+                } catch (Exception ignored) { }
+                boolean game = Build.VERSION.SDK_INT >= 26 && info.category == ApplicationInfo.CATEGORY_GAME;
+                result.add(new AppEntry(info, label, version, game));
+            }
+        } catch (Exception e) {
+            publishStatus("خواندن برنامه‌های نصب‌شده ناموفق بود: " + safeMessage(e));
+        }
+        result.sort((a, b) -> {
+            if (a.isGame != b.isGame) return a.isGame ? -1 : 1;
+            return a.label.compareToIgnoreCase(b.label);
+        });
+        return result;
+    }
+
+    private void createAppBundles(List<AppEntry> apps) {
+        List<PickedFile> created = new ArrayList<>();
+        try {
+            File folder = new File(getCacheDir(), "app-bundles");
+            if (!folder.exists() && !folder.mkdirs()) throw new IOException("Cannot create app bundle folder");
+            for (AppEntry app : apps) {
+                File bundle = new File(folder, safeFileName(app.label) + "-" + app.info.packageName + ".sharenowapp");
+                Properties metadata = new Properties();
+                metadata.setProperty("packageName", app.info.packageName);
+                metadata.setProperty("label", app.label);
+                metadata.setProperty("versionName", app.versionName == null ? "" : app.versionName);
+                metadata.setProperty("isGame", Boolean.toString(app.isGame));
+
+                try (ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(bundle), BUFFER_SIZE))) {
+                    zip.putNextEntry(new ZipEntry("bundle.properties"));
+                    metadata.store(zip, "ShareNow Android app bundle");
+                    zip.closeEntry();
+                    addApkToBundle(zip, new File(app.info.sourceDir), "base.apk");
+                    String[] splits = app.info.splitSourceDirs;
+                    if (splits != null) {
+                        for (int i = 0; i < splits.length; i++) {
+                            addApkToBundle(zip, new File(splits[i]), "split_" + i + ".apk");
+                        }
+                    }
+                }
+                created.add(new PickedFile(Uri.fromFile(bundle), app.label + ".sharenowapp", bundle.length(), ""));
+            }
+            mainHandler.post(() -> {
+                pickedFiles.addAll(created);
+                updatePickedSummary();
+                setStatus("آماده‌سازی برنامه‌ها کامل شد؛ اکنون گوشی مقصد را اسکن یا انتخاب کنید.");
+                showToast(created.size() + " بستهٔ برنامه/بازی آمادهٔ ارسال شد.");
+            });
+        } catch (Exception e) {
+            publishStatus("ساخت بستهٔ برنامه ناموفق بود: " + safeMessage(e));
+        }
+    }
+
+    private void addApkToBundle(ZipOutputStream zip, File apk, String entryName) throws IOException {
+        if (!apk.isFile() || !apk.canRead()) throw new IOException("فایل نصب قابل خواندن نیست: " + apk.getName());
+        zip.putNextEntry(new ZipEntry(entryName));
+        try (InputStream input = new BufferedInputStream(new java.io.FileInputStream(apk), BUFFER_SIZE)) {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int count;
+            while ((count = input.read(buffer)) != -1) zip.write(buffer, 0, count);
+        }
+        zip.closeEntry();
+    }
+
+    private void registerReceivedBundle(FileTarget target, String fileName) {
+        if (fileName == null || !fileName.toLowerCase(Locale.ROOT).endsWith(".sharenowapp")) return;
+        ReceivedBundle bundle = new ReceivedBundle(fileName, target.mediaUri, target.file);
+        mainHandler.post(() -> {
+            receivedBundles.add(bundle);
+            if (installReceivedButton != null) {
+                installReceivedButton.setVisibility(View.VISIBLE);
+                installReceivedButton.setText("نصب برنامه‌ها و بازی‌های دریافتی (" + receivedBundles.size() + ")");
+            }
+        });
+    }
+
+    private void showReceivedBundles() {
+        if (receivedBundles.isEmpty()) {
+            showToast("بستهٔ برنامه‌ای دریافت نشده است.");
+            return;
+        }
+        String[] names = new String[receivedBundles.size()];
+        for (int i = 0; i < names.length; i++) names[i] = receivedBundles.get(i).name;
+        new AlertDialog.Builder(this)
+                .setTitle("انتخاب بسته برای نصب")
+                .setItems(names, (dialog, which) -> installReceivedBundle(receivedBundles.get(which)))
+                .setNegativeButton("بستن", null)
+                .show();
+    }
+
+    private void installReceivedBundle(ReceivedBundle bundle) {
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            pendingReceivedInstall = bundle;
+            Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()));
+            try {
+                startActivityForResult(settings, INSTALL_PERMISSION_REQUEST);
+            } catch (Exception e) {
+                showToast("برای نصب، مجوز نصب از این برنامه را در تنظیمات Android فعال کنید.");
+            }
+            return;
+        }
+        transferExecutor.execute(() -> {
+            try {
+                File sourceZip = new File(getCacheDir(), "incoming-" + System.currentTimeMillis() + ".sharenowapp");
+                try (InputStream input = bundle.open(this);
+                     OutputStream output = new BufferedOutputStream(new FileOutputStream(sourceZip), BUFFER_SIZE)) {
+                    byte[] buffer = new byte[BUFFER_SIZE];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                }
+
+                File staging = new File(getCacheDir(), "install-" + System.currentTimeMillis());
+                if (!staging.mkdirs()) throw new IOException("Cannot create install staging folder");
+                Properties metadata = new Properties();
+                List<File> apkFiles = new ArrayList<>();
+                try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(new java.io.FileInputStream(sourceZip), BUFFER_SIZE))) {
+                    ZipEntry entry;
+                    while ((entry = zip.getNextEntry()) != null) {
+                        String name = entry.getName();
+                        if (entry.isDirectory()) continue;
+                        if (name.equals("bundle.properties")) {
+                            metadata.load(zip);
+                        } else if (name.equals("base.apk") || (name.startsWith("split_") && name.endsWith(".apk"))) {
+                            File outputFile = new File(staging, name);
+                            try (OutputStream output = new BufferedOutputStream(new FileOutputStream(outputFile), BUFFER_SIZE)) {
+                                byte[] buffer = new byte[BUFFER_SIZE];
+                                int count;
+                                while ((count = zip.read(buffer)) != -1) output.write(buffer, 0, count);
+                            }
+                            apkFiles.add(outputFile);
+                        }
+                        zip.closeEntry();
+                    }
+                }
+                final String packageName = metadata.getProperty("packageName", "");
+                File baseApk = new File(staging, "base.apk");
+                PackageInfo archiveInfo = baseApk.isFile()
+                        ? getPackageManager().getPackageArchiveInfo(baseApk.getAbsolutePath(), 0) : null;
+                if (packageName.isEmpty() || archiveInfo == null || !baseApk.isFile() || apkFiles.isEmpty()) {
+                    throw new IOException("بستهٔ برنامه ناقص یا نامعتبر است.");
+                }
+                if (!packageName.equals(archiveInfo.packageName)) {
+                    throw new IOException("شناسهٔ برنامه با بستهٔ نصب مطابقت ندارد.");
+                }
+                apkFiles.sort((a, b) -> a.getName().equals("base.apk") ? -1 : (b.getName().equals("base.apk") ? 1 : a.getName().compareTo(b.getName())));
+
+                PackageInstaller installer = getPackageManager().getPackageInstaller();
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                params.setAppPackageName(packageName);
+                int sessionId = installer.createSession(params);
+                try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+                    for (File apk : apkFiles) {
+                        try (InputStream input = new BufferedInputStream(new java.io.FileInputStream(apk), BUFFER_SIZE);
+                             OutputStream output = session.openWrite(apk.getName(), 0, apk.length())) {
+                            byte[] buffer = new byte[BUFFER_SIZE];
+                            int count;
+                            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                            session.fsync(output);
+                        }
+                    }
+                    Intent callback = new Intent(this, InstallStatusReceiver.class);
+                    callback.setAction("com.sharenow.INSTALL_STATUS." + sessionId);
+                    PendingIntent pending = PendingIntent.getBroadcast(this, sessionId, callback,
+                            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
+                    session.commit(pending.getIntentSender());
+                } catch (Exception e) {
+                    installer.abandonSession(sessionId);
+                    throw e;
+                }
+                sourceZip.delete();
+                publishStatus("درخواست نصب " + metadata.getProperty("label", packageName)
+                        + " به Android فرستاده شد؛ تأیید نصب را در پنجرهٔ سیستم انجام دهید.");
+            } catch (Exception e) {
+                publishStatus("نصب بستهٔ برنامه ناموفق بود: " + safeMessage(e));
+            }
+        });
+    }
+
     private void openFilePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -1241,6 +1610,40 @@ public class MainActivity extends Activity {
         releaseTransferWakeLock();
         transferExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+
+    private static final class AppEntry {
+        final ApplicationInfo info;
+        final String label;
+        final String versionName;
+        final boolean isGame;
+        AppEntry(ApplicationInfo info, String label, String versionName, boolean isGame) {
+            this.info = info;
+            this.label = label;
+            this.versionName = versionName;
+            this.isGame = isGame;
+        }
+    }
+
+    private static final class ReceivedBundle {
+        final String name;
+        final Uri uri;
+        final File file;
+        ReceivedBundle(String name, Uri uri, File file) {
+            this.name = name;
+            this.uri = uri;
+            this.file = file;
+        }
+        InputStream open(Context context) throws IOException {
+            if (uri != null) {
+                InputStream input = context.getContentResolver().openInputStream(uri);
+                if (input == null) throw new IOException("فایل دریافتی قابل خواندن نیست.");
+                return input;
+            }
+            if (file != null && file.isFile()) return new java.io.FileInputStream(file);
+            throw new IOException("فایل بسته پیدا نشد.");
+        }
     }
 
     private static final class PickedFile {
