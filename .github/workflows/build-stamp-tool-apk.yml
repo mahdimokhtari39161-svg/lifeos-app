@@ -1,4 +1,4 @@
-name: Build Stamp Tool Android APK
+name: Build Mehrnegar Android APK
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Qassemi APK
+    name: Build Mehrnegar APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
@@ -42,6 +42,12 @@ jobs:
         working-directory: stamp-tool
         run: npm install
 
+      - name: Generate branded web icon
+        working-directory: stamp-tool
+        run: |
+          python -m pip install pillow
+          python make_icons.py web
+
       - name: Prepare Capacitor web assets
         working-directory: stamp-tool
         run: |
@@ -51,6 +57,10 @@ jobs:
       - name: Add Android platform
         working-directory: stamp-tool
         run: npx cap add android
+
+      - name: Generate native Android launcher icons
+        working-directory: stamp-tool
+        run: python make_icons.py android
 
       - name: Sync Capacitor
         working-directory: stamp-tool
@@ -65,7 +75,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Qassemi-Stamp-Tool-APK
+          name: Mehrnegar-APK
           path: stamp-tool/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

@@ -1,4 +1,4 @@
-# قاسمی — ابزار مهر و امضا روی نقشه
+# مهرنگار — ابزار مهر و امضا روی نقشه
 
 نسخه مستقل و نصب‌پذیر ابزار مهر و امضا.
 
@@ -21,7 +21,7 @@ https://mahdimokhtari39161-svg.github.io/lifeos-app/stamp-tool/
 
 ## ساخت APK
 
-پس از push شدن تغییرات در پوشه stamp-tool/، به تب **Actions** مخزن lifeos-app بروید و اجرای **Build Stamp Tool Android APK** را باز کنید. فایل app-debug.apk در بخش **Artifacts** با نام **Qassemi-Stamp-Tool-APK** قرار می‌گیرد. APK را دانلود، از حالت فشرده خارج و روی اندروید نصب کنید.
+پس از push شدن تغییرات در پوشه stamp-tool/، به تب **Actions** مخزن lifeos-app بروید و اجرای **Build Stamp Tool Android APK** را باز کنید. فایل app-debug.apk در بخش **Artifacts** با نام **Mehrnegar-APK** قرار می‌گیرد. APK را دانلود، از حالت فشرده خارج و روی اندروید نصب کنید.
 
 ## حریم خصوصی و نگهداری داده
 
