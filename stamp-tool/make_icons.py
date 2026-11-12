@@ -34,7 +34,7 @@ def web():
 
 def android():
     res=ROOT/"android/app/src/main/res"
-    # Legacy launcher icons for older Android launchers.
+    # Remove Capacitor template vector foregrounds; otherwise Android may prefer\n    # the default robot artwork over our custom PNG adaptive-icon foreground.\n    for old in res.rglob("ic_launcher_foreground.xml"):\n        old.unlink()\n    # Legacy launcher icons for older Android launchers.
     for density, size in [("mdpi",48),("hdpi",72),("xhdpi",96),("xxhdpi",144),("xxxhdpi",192)]:
         folder=res/f"mipmap-{density}"; folder.mkdir(parents=True,exist_ok=True)
         draw_icon(size).save(folder/"ic_launcher.png", optimize=True)
