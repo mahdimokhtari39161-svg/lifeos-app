@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f5c46"><link rel="icon" href="icon-192.png">
+<title>قاسمی</title>
+<style>
+:root{--bg:#eef1ee;--card:#fff;--tx:#17211c;--mut:#5d6b64;--ac:#0f5c46;--acx:#fff;--bd:#cfd8d2;--st:#dfe6e1;--red:#b4232a;box-sizing:border-box}
+@media(prefers-color-scheme:dark){:root{--bg:#101613;--card:#18211c;--tx:#e6efe9;--mut:#93a39a;--ac:#4fd1a1;--acx:#08241a;--bd:#2b3a32;--st:#0b100d;--red:#ff7b80}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font-family:Vazirmatn,Tahoma,"Segoe UI",sans-serif;font-size:15px;line-height:1.7;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd)}
+h1{font-size:17px;margin:0;font-weight:700}
+main{max-width:760px;margin:0 auto;padding:10px 12px 40px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,.btn{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 13px;border-radius:8px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.pri{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:700}
+.dng{color:var(--red)}
+.seg{display:flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-height:34px}
+.seg button.on{background:var(--ac);color:var(--acx)}
+details,.panel{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px}
+summary{cursor:pointer;font-weight:700}
+details .row{margin-top:8px}
+.pv{height:38px;max-width:80px;object-fit:contain;border:1px dashed var(--bd);border-radius:6px;background:repeating-conic-gradient(#8883 0 25%,transparent 0 50%) 0 0/10px 10px}
+#stage{background:var(--st);border:1px solid var(--bd);border-radius:10px;padding:8px;min-height:160px;display:flex;align-items:center;justify-content:center}
+#cv{display:block;max-width:100%;max-height:62vh;width:auto;height:auto;touch-action:none;background:#fff;box-shadow:0 1px 8px #0004}
+#empty{color:var(--mut);text-align:center;margin:0}
+.panel label{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mut)}
+.panel label span{min-width:56px}
+.panel input[type=range]{flex:1;accent-color:var(--ac);min-height:30px}
+#sel{font-size:13px;color:var(--mut)}
+select{font:inherit;font-size:14px;padding:6px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);min-height:40px}
+.adv-only{display:none!important}
+body.adv .adv-only{display:flex!important}
+body.adv .adv-block{display:block!important}
+#toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1 style="display:flex;align-items:center;gap:8px"><img src="icon-192.png" alt="" width="30" height="30" style="border-radius:7px" onerror="this.style.display='none'">قاسمی</h1>
+  <div class="seg"><button id="mS" class="on">ساده</button><button id="mA">پیشرفته</button></div>
+</header>
+<main>
+  <details id="setup" open>
+    <summary>تنظیم مهر و امضا (فقط یک بار)</summary>
+    <div class="row adv-only">
+      <select id="profSel"></select>
+      <button id="profNew">+ پروفایل جدید</button>
+      <button id="profDel" class="dng">حذف پروفایل</button>
+    </div>
+    <div class="row">
+      <label class="btn">فایل PNG مهر<input type="file" id="fStamp" accept="image/*" hidden></label>
+      <img id="pvStamp" class="pv" alt="">
+      <label class="btn">فایل PNG امضا<input type="file" id="fSign" accept="image/*" hidden></label>
+      <img id="pvSign" class="pv" alt="">
+    </div>
+  </details>
+
+  <div class="row">
+    <label class="btn pri">+ افزودن نقشه (عکس)<input type="file" id="fMap" accept="image/*" multiple hidden></label>
+    <button id="place">مهر و امضا را بگذار</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <p id="empty">عکس نقشه را اضافه کنید؛ مهر و امضا خودکار روی آن می‌نشینند.</p>
+  </div>
+
+  <div class="row" style="justify-content:space-between">
+    <button id="prev">قبلی</button>
+    <span id="pgl">—</span>
+    <button id="next">بعدی</button>
+    <button id="pgDel" class="dng adv-only">حذف صفحه</button>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin:0 0 6px">
+      <button id="selStamp">مهر</button>
+      <button id="selSign">امضا</button>
+      <span id="sel"></span>
+    </div>
+    <label><span>اندازه</span><input type="range" id="rs" min="3" max="60" value="18"></label>
+    <label class="adv-only"><span>چرخش</span><input type="range" id="rr" min="-180" max="180" value="0"></label>
+    <label class="adv-only"><span>شفافیت</span><input type="range" id="ro" min="20" max="100" value="100"></label>
+    <div class="row" style="margin-top:8px">
+      <button id="itDel" class="dng">برداشتن این مورد</button>
+      <button id="saveDef" class="adv-only">ذخیره جایگاه به‌عنوان پیش‌فرض پروفایل</button>
+      <button id="applyAll" class="adv-only">اعمال این جایگاه روی همه صفحات</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="saveImg" class="pri">ذخیره عکس این صفحه</button>
+    <select id="fmt" class="adv-only"><option value="jpeg">JPG</option><option value="png">PNG</option></select>
+    <button id="savePdf" class="adv-only">PDF همه صفحات</button>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const C=$('#cv');
+const DEF={stamp:{x:.8,y:.86,s:.18,r:0,o:1},sign:{x:.62,y:.89,s:.16,r:0,o:1}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+let profiles=[],active='',pages=[],cur=0,sel=null,imgs={stamp:null,sign:null};
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
+function loadStore(){
+  try{profiles=JSON.parse(localStorage.getItem('ms_p')||'[]');active=localStorage.getItem('ms_a')||''}catch(e){profiles=[]}
+  if(!profiles.length)profiles=[{name:'پیش‌فرض',stamp:null,sign:null,pos:clone(DEF)}];
+  if(!profiles.find(p=>p.name===active))active=profiles[0].name;
+}
+function saveStore(){
+  try{localStorage.setItem('ms_p',JSON.stringify(profiles));localStorage.setItem('ms_a',active)}
+  catch(e){alert('ذخیره‌سازی مرورگر در دسترس نیست؛ تنظیمات بعد از بستن صفحه می‌پرند.')}
+}
+const prof=()=>profiles.find(p=>p.name===active);
+const pg=()=>pages[cur];
+const curItem=()=>{const p=pg();return p&&sel!=null?p.items[sel]:null};
+
+function loadImgs(){
+  ['stamp','sign'].forEach(k=>{
+    const d=prof()[k];
+    if(!d){imgs[k]=null;return}
+    const i=new Image();i.onload=draw;i.src=d;imgs[k]=i;
+  });
+  $('#pvStamp').src=prof().stamp||'';$('#pvSign').src=prof().sign||'';
+  $('#pvStamp').style.visibility=prof().stamp?'visible':'hidden';
+  $('#pvSign').style.visibility=prof().sign?'visible':'hidden';
+}
+function renderProfiles(){
+  const s=$('#profSel');s.innerHTML='';
+  profiles.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p.name;s.appendChild(o)});
+  s.value=active;
+}
+function placeItems(){
+  const p=prof();
+  return ['stamp','sign'].filter(k=>p[k]).map(k=>Object.assign({k},clone(p.pos[k]||DEF[k])));
+}
+
+function paint(c,p,edit){
+  const W=c.width,H=c.height,x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,W,H);x.drawImage(p.img,0,0,W,H);
+  p.items.forEach((it,i)=>{
+    const im=imgs[it.k];if(!im||!im.complete||!im.naturalWidth)return;
+    const w=it.s*W,h=w*im.naturalHeight/im.naturalWidth;
+    x.save();x.globalAlpha=it.o;x.translate(it.x*W,it.y*H);x.rotate(it.r*Math.PI/180);
+    x.drawImage(im,-w/2,-h/2,w,h);
+    if(edit&&i===sel){x.globalAlpha=1;x.strokeStyle='#e11d48';x.lineWidth=Math.max(2,W/300);x.setLineDash([W/80,W/120]);x.strokeRect(-w/2,-h/2,w,h)}
+    x.restore();
+  });
+}
+function syncUI(){
+  const p=pg(),it=curItem();
+  $('#sel').textContent=it?(it.k==='stamp'?'مهر':'امضا')+' انتخاب شده؛ بکشید یا با دو انگشت بزرگ/چرخان کنید':'یکی را انتخاب کنید یا روی آن بزنید';
+  if(it){$('#rs').value=Math.round(it.s*100);$('#rr').value=Math.round(it.r);$('#ro').value=Math.round(it.o*100)}
+  $('#pgl').textContent=p?'صفحه '+(cur+1)+' از '+pages.length:'—';
+  $('#empty').style.display=p?'none':'block';
+  C.style.display=p?'block':'none';
+}
+function draw(){
+  const p=pg();syncUI();if(!p)return;
+  const k=Math.min(1,1500/Math.max(p.w,p.h)),pw=Math.round(p.w*k),ph=Math.round(p.h*k);
+  if(C.width!==pw)C.width=pw;
+  if(C.height!==ph)C.height=ph;
+  paint(C,p,true);
+}
+
+/* ---------- touch / mouse ---------- */
+const P=new Map();let g=null;
+const pt=e=>{const r=C.getBoundingClientRect();return{x:(e.clientX-r.left)*C.width/r.width,y:(e.clientY-r.top)*C.height/r.height}};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const ang=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
+function hit(px,py){
+  const p=pg(),W=C.width,H=C.height;
+  for(let i=p.items.length-1;i>=0;i--){
+    const it=p.items[i],im=imgs[it.k];if(!im||!im.naturalWidth)continue;
+    const w=it.s*W,h=w*im.naturalHeight/im.naturalWidth,a=-it.r*Math.PI/180;
+    const dx=px-it.x*W,dy=py-it.y*H;
+    const lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a);
+    if(Math.abs(lx)<=w/2&&Math.abs(ly)<=h/2)return i;
+  }
+  return -1;
+}
+C.onpointerdown=e=>{
+  if(!pg())return;
+  C.setPointerCapture(e.pointerId);P.set(e.pointerId,pt(e));
+  if(P.size===1){
+    const p=pt(e),i=hit(p.x,p.y);
+    if(i>=0){sel=i;const it=pg().items[i];g={t:'drag',ox:it.x-p.x/C.width,oy:it.y-p.y/C.height}}else g=null;
+    draw();
+  }else if(P.size===2&&sel!=null){
+    const [a,b]=[...P.values()],it=curItem();
+    g={t:'pinch',d:dist(a,b),an:ang(a,b),s:it.s,r:it.r};
+  }
+};
+C.onpointermove=e=>{
+  if(!P.has(e.pointerId))return;
+  P.set(e.pointerId,pt(e));
+  const it=curItem();if(!g||!it)return;
+  if(g.t==='drag'&&P.size===1){const p=pt(e);it.x=clamp(p.x/C.width+g.ox);it.y=clamp(p.y/C.height+g.oy)}
+  else if(g.t==='pinch'&&P.size===2){
+    const [a,b]=[...P.values()];
+    it.s=clamp(g.s*dist(a,b)/g.d,.02,.9);
+    let r=g.r+(ang(a,b)-g.an)*180/Math.PI;r=((r+540)%360)-180;it.r=r;
+  }
+  draw();
+};
+C.onpointerup=C.onpointercancel=e=>{P.delete(e.pointerId);g=null};
+
+/* ---------- controls ---------- */
+[['rs','s',v=>v/100],['rr','r',v=>+v],['ro','o',v=>v/100]].forEach(([id,k,f])=>{
+  $('#'+id).oninput=e=>{const it=curItem();if(!it)return;it[k]=f(e.target.value);draw()};
+});
+function selectKind(k){const p=pg();if(!p)return;const i=p.items.findIndex(t=>t.k===k);if(i>=0){sel=i;draw()}else toast('این مورد روی صفحه نیست؛ PNG آن را در تنظیمات بدهید')}
+$('#selStamp').onclick=()=>selectKind('stamp');
+$('#selSign').onclick=()=>selectKind('sign');
+$('#itDel').onclick=()=>{const p=pg();if(!p||sel==null)return;p.items.splice(sel,1);sel=null;draw()};
+$('#place').onclick=()=>{const p=pg();if(!p)return;p.items=placeItems();sel=p.items.length?0:null;draw()};
+$('#prev').onclick=()=>{if(cur>0){cur--;sel=null;draw()}};
+$('#next').onclick=()=>{if(cur<pages.length-1){cur++;sel=null;draw()}};
+$('#pgDel').onclick=()=>{if(!pg()||!confirm('این صفحه از لیست حذف شود؟'))return;pages.splice(cur,1);cur=Math.max(0,cur-1);sel=null;draw()};
+$('#saveDef').onclick=()=>{
+  const p=pg();if(!p)return;
+  p.items.forEach(it=>{prof().pos[it.k]={x:it.x,y:it.y,s:it.s,r:it.r,o:it.o}});
+  saveStore();toast('جایگاه برای پروفایل «'+active+'» ذخیره شد');
+};
+$('#applyAll').onclick=()=>{
+  const p=pg();if(!p)return;
+  pages.forEach(q=>{if(q!==p)q.items=clone(p.items)});toast('روی همه صفحات اعمال شد');
+};
+function setMode(a){document.body.classList.toggle('adv',a);$('#mA').classList.toggle('on',a);$('#mS').classList.toggle('on',!a);try{localStorage.setItem('ms_m',a?'1':'0')}catch(e){}}
+$('#mS').onclick=()=>setMode(false);
+$('#mA').onclick=()=>setMode(true);
+
+/* ---------- profiles & PNG upload ---------- */
+function readPng(f,cb){
+  const r=new FileReader();
+  r.onload=()=>{const i=new Image();i.onload=()=>{
+    const m=Math.min(1,900/Math.max(i.width,i.height)),c=document.createElement('canvas');
+    c.width=Math.round(i.width*m);c.height=Math.round(i.height*m);
+    c.getContext('2d').drawImage(i,0,0,c.width,c.height);cb(c.toDataURL('image/png'));
+  };i.src=r.result};
+  r.readAsDataURL(f);
+}
+function setKind(k,file){
+  if(!file)return;
+  readPng(file,d=>{
+    prof()[k]=d;saveStore();loadImgs();
+    pages.forEach(p=>{if(!p.items.some(t=>t.k===k))p.items.push(Object.assign({k},clone(prof().pos[k]||DEF[k])))});
+    draw();toast(k==='stamp'?'مهر ذخیره شد':'امضا ذخیره شد');
+  });
+}
+$('#fStamp').onchange=e=>{setKind('stamp',e.target.files[0]);e.target.value=''};
+$('#fSign').onchange=e=>{setKind('sign',e.target.files[0]);e.target.value=''};
+$('#profSel').onchange=e=>{active=e.target.value;saveStore();loadImgs();pages.forEach(p=>p.items=placeItems());sel=null;draw()};
+$('#profNew').onclick=()=>{
+  const n=(prompt('نام پروفایل (مثلاً نام مهندس):')||'').trim();
+  if(!n)return;
+  if(profiles.some(p=>p.name===n)){toast('این نام قبلاً هست');return}
+  profiles.push({name:n,stamp:null,sign:null,pos:clone(DEF)});active=n;saveStore();renderProfiles();loadImgs();pages.forEach(p=>p.items=[]);sel=null;draw();
+};
+$('#profDel').onclick=()=>{
+  if(profiles.length<2){toast('حداقل یک پروفایل باید بماند');return}
+  if(!confirm('پروفایل «'+active+'» حذف شود؟'))return;
+  profiles=profiles.filter(p=>p.name!==active);active=profiles[0].name;saveStore();renderProfiles();loadImgs();pages.forEach(p=>p.items=placeItems());sel=null;draw();
+};
+
+/* ---------- maps ---------- */
+function addMap(f){
+  return new Promise(res=>{
+    const u=URL.createObjectURL(f),im=new Image();
+    im.onload=()=>{
+      const m=Math.min(1,3600/Math.max(im.naturalWidth,im.naturalHeight));
+      pages.push({img:im,name:f.name.replace(/\.[^.]+$/,''),w:Math.round(im.naturalWidth*m),h:Math.round(im.naturalHeight*m),items:placeItems()});
+      res();
+    };
+    im.onerror=()=>{toast('این فایل عکس نیست');res()};
+    im.src=u;
+  });
+}
+$('#fMap').onchange=async e=>{
+  const fs=[...e.target.files];e.target.value='';
+  const first=pages.length;
+  for(const f of fs)await addMap(f);
+  if(pages.length>first){cur=first;sel=null;draw();$('#setup').open=!(prof().stamp&&prof().sign)}
+};
+
+/* ---------- export ---------- */
+function render(p){const c=document.createElement('canvas');c.width=p.w;c.height=p.h;paint(c,p,false);return c}
+async function dl(blob,name){
+  const cap=window.Capacitor;
+  if(cap&&cap.isNativePlatform&&cap.isNativePlatform()){
+    try{
+      const b64=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.readAsDataURL(blob)});
+      const w=await cap.Plugins.Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
+      await cap.Plugins.Share.share({title:name,url:w.uri,dialogTitle:'ذخیره یا ارسال'});
+    }catch(e){if(!/cancel/i.test(String(e)))toast('ذخیره نشد')}
+    return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
+}
+const toBlob=(c,t,q)=>new Promise(r=>c.toBlob(r,t,q));
+$('#saveImg').onclick=async()=>{
+  const p=pg();if(!p){toast('اول نقشه را اضافه کنید');return}
+  const t=$('#fmt').value==='png'?'image/png':'image/jpeg';
+  const b=await toBlob(render(p),t,.93);
+  dl(b,p.name+'-signed.'+(t==='image/png'?'png':'jpg'));toast('ذخیره شد');
+};
+$('#savePdf').onclick=async()=>{
+  if(!pages.length){toast('اول نقشه را اضافه کنید');return}
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const push=d=>{const b=typeof d==='string'?enc.encode(d):d;parts.push(b);len+=b.length};
+  const obj=(id,fn)=>{offs[id]=len;push(id+' 0 obj\n');fn();push('\nendobj\n')};
+  const n=pages.length,jpgs=[];
+  for(const p of pages)jpgs.push(new Uint8Array(await (await toBlob(render(p),'image/jpeg',.92)).arrayBuffer()));
+  push('%PDF-1.4\n');
+  obj(1,()=>push('<</Type/Catalog/Pages 2 0 R>>'));
+  obj(2,()=>push('<</Type/Pages/Count '+n+'/Kids['+pages.map((_,i)=>(3+3*i)+' 0 R').join(' ')+']>>'));
+  pages.forEach((p,i)=>{
+    const land=p.w>p.h,W=land?842:595,H=land?595:842,k=Math.min(W/p.w,H/p.h),w=p.w*k,h=p.h*k;
+    const content='q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+((W-w)/2).toFixed(2)+' '+((H-h)/2).toFixed(2)+' cm /Im0 Do Q';
+    obj(3+3*i,()=>push('<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+W+' '+H+']/Resources<</XObject<</Im0 '+(5+3*i)+' 0 R>>>>/Contents '+(4+3*i)+' 0 R>>'));
+    obj(4+3*i,()=>push('<</Length '+content.length+'>>\nstream\n'+content+'\nendstream'));
+    obj(5+3*i,()=>{push('<</Type/XObject/Subtype/Image/Width '+p.w+'/Height '+p.h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+jpgs[i].length+'>>\nstream\n');push(jpgs[i]);push('\nendstream')});
+  });
+  const max=2+3*n,xo=len;
+  push('xref\n0 '+(max+1)+'\n0000000000 65535 f \n');
+  for(let id=1;id<=max;id++)push(String(offs[id]).padStart(10,'0')+' 00000 n \n');
+  push('trailer\n<</Size '+(max+1)+'/Root 1 0 R>>\nstartxref\n'+xo+'\n%%EOF');
+  dl(new Blob(parts,{type:'application/pdf'}),'plans-signed.pdf');toast('PDF ساخته شد');
+};
+
+/* ---------- init ---------- */
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')&&!window.Capacitor)navigator.serviceWorker.register('sw.js').catch(()=>{});
+loadStore();renderProfiles();loadImgs();
+try{setMode(localStorage.getItem('ms_m')==='1')}catch(e){setMode(false)}
+$('#setup').open=!(prof().stamp&&prof().sign);
+draw();
+</script>
+</body>
+</html>
